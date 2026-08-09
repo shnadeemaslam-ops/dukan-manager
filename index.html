@@ -1202,7 +1202,12 @@ async function renderDashboard(){
   const lowStock = items.filter(i=>i.qty<=2).sort((a,b)=>(a.qty===0?1:0)-(b.qty===0?1:0));
 
   let html = `
-    <input id="dashSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+    <div class="search-wrap">
+      <input id="dashSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <button type="button" class="mic-btn" id="dashMicBtn" onclick="startVoiceSearch('dash')" title="Search by voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+      </button>
+    </div>
     <div id="dashSearchResults"></div>
 
     <div class="register">
@@ -2021,7 +2026,12 @@ let salePartTypeFilter = 'all';
 let saleSubTypeFilter = 'all';
 function renderItemSale(){
   const cats = ['all', ...categories.filter(c=>c!=='Model Compatibility')];
-  let html = `<input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${saleItemSearch}" oninput="setSaleSearch(this.value)">
+  let html = `<div class="search-wrap">
+      <input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${saleItemSearch}" oninput="setSaleSearch(this.value)">
+      <button type="button" class="mic-btn" id="saleMicBtn" onclick="startVoiceSearch('sale')" title="Search by voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+      </button>
+    </div>
     <div class="chips" id="saleChips">${cats.map(c=>`<div class="chip ${saleFilter===c?'active':''}" onclick="setSaleFilter('${c}')">${c==='all'?'All':c}</div>`).join('')}</div>
     <div class="chips" id="salePartChips" style="${saleFilter!=='all'?'':'display:none'}"></div>
     <div class="chips" id="saleSubChips" style="${(saleFilter!=='all' && salePartTypeFilter!=='all')?'':'display:none'}"></div>
