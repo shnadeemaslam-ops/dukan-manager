@@ -411,20 +411,6 @@ async function savePartTypes(){
   try{ await db.collection('shop').doc('partTypes').set({value: partTypes}); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
-let serviceSubTypes = {
-  'Mobile Repair': [],
-  'Laptop/PC Repair': []
-};
-async function loadServiceSubTypes(){
-  try{
-    const doc = await db.collection('shop').doc('serviceSubTypes').get();
-    if(doc.exists && doc.data().value) serviceSubTypes = doc.data().value;
-  }catch(e){ console.error(e); }
-}
-async function saveServiceSubTypes(){
-  try{ await db.collection('shop').doc('serviceSubTypes').set({value: serviceSubTypes}); return true; }
-  catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
-}
 let subPartTypes = {};
 function subPartKey(cat, sub){ return cat+'::'+sub; }
 async function loadSubPartTypes(){
@@ -443,26 +429,62 @@ let currentView = 'dashboard';
 let saleFilter = 'all';
 let saleMode = 'item';
 let saleDate = null;
-const SERVICE_TYPES = ['Mobile Repair','Laptop/PC Repair','Data Copy/Transfer','Other Service'];
-const SUBTYPE_SERVICE_TYPES = ['Mobile Repair','Laptop/PC Repair']; // services that support user-defined repair sub-categories
+const SERVICE_TYPES = ['Mobile Repair','Laptop Repair','Data Copy/Transfer','Other Service'];
 let invFilter = 'all';
 let reportDate = todayStr();
 let reportPeriod = 'daily';
 let reportMonth = todayStr().slice(0,7);
-let reportSubTab = 'overview';
-let advanceSort = 'sale';
 
 function todayStr(){
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function fmtMoney(n){ return 'Rs '+Number(n).toLocaleString('en-US',{maximumFractionDigits:0}); }
+const NUM_WORDS = {zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,
+  ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,
+  twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100};
+function wordsToDigits(text){
+  const tokens = text.split(' ');
+  const out = [];
+  let i=0;
+  while(i<tokens.length){
+    if(NUM_WORDS.hasOwnProperty(tokens[i])){
+      let current = 0;
+      while(i<tokens.length && NUM_WORDS.hasOwnProperty(tokens[i])){
+        const val = NUM_WORDS[tokens[i]];
+        current = (val===100) ? (current||1)*100 : current+val;
+        i++;
+      }
+      out.push(String(current));
+    } else {
+      out.push(tokens[i]);
+      i++;
+    }
+  }
+  return out.join(' ');
+}
+function normSearchText(str){
+  str = (str||'').toLowerCase().replace(/[-_]+/g,' ').replace(/\bdash\b/g,' ');
+  str = wordsToDigits(str);
+  str = str.replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  return str;
+}
+// Smart search: order-independent, ignores dashes, understands spelled-out numbers
+// (e.g. "GX5 gaming mouse" matches "Gaming Mouse GX5"; "T ninety" matches "T-90")
+function smartMatch(text, query){
+  const nQuery = normSearchText(query);
+  if(!nQuery) return true;
+  const nText = normSearchText(text);
+  const queryTokens = nQuery.split(' ').filter(Boolean);
+  const textTokens = nText.split(' ').filter(Boolean);
+  return queryTokens.every(qt => textTokens.some(tt=>tt.includes(qt)) || nText.includes(qt));
+}
 function highlightModels(models, query){
   if(!query) return models.join(', ');
   const q = query.trim().toLowerCase();
   if(!q) return models.join(', ');
   return models.map(m=>{
-    if(m.toLowerCase().includes(q)){
+    if(smartMatch(m, query)){
       return `<span style="background:var(--accent); color:var(--accent-text); padding:1px 6px; border-radius:5px; font-weight:700;">${m}</span>`;
     }
     return m;
@@ -1297,8 +1319,8 @@ function renderDashSearchResults(){
   const q = dashboardSearch.trim().toLowerCase();
   if(!q){ box.innerHTML=''; return; }
   const matches = items.filter(i=>{
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = smartMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>smartMatch(m, q));
     return nameMatch || modelMatch;
   });
   if(matches.length===0){
@@ -1359,8 +1381,8 @@ async function renderInventory(){
     if(invFilter!=='all' && invPartTypeFilter!=='all' && i.partType!==invPartTypeFilter) return false;
     if(invPartTypeFilter!=='all' && invSubTypeFilter!=='all' && i.subPartType!==invSubTypeFilter) return false;
     if(!q) return true;
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = smartMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>smartMatch(m, q));
     return nameMatch || modelMatch;
   });
   const inStockList = list.filter(i=>i.qty>0);
@@ -1665,8 +1687,14 @@ function renderManageCategoriesModal(){
   overlay.innerHTML = `
     <div class="modal">
       <h3>Edit Categories</h3>
-      ${categories.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No categories yet.</p>' : categories.map((c,idx)=>`
-        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+      ${categories.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No categories yet.</p>' : `
+      <p style="color:var(--muted); font-size:12px; margin-bottom:12px; line-height:1.6;">Use ▲ ▼ to reorder — this sets the order of the category tabs in Inventory & Sale. Put your most-used categories at the top.</p>
+      ` + categories.map((c,idx)=>`
+        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <button class="secondary" style="padding:4px 8px; font-size:11px; line-height:1;" ${idx===0?'disabled':''} onclick="moveCategory(${idx},-1)">▲</button>
+            <button class="secondary" style="padding:4px 8px; font-size:11px; line-height:1;" ${idx===categories.length-1?'disabled':''} onclick="moveCategory(${idx},1)">▼</button>
+          </div>
           <input id="cat_edit_${idx}" value="${c}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveCategoryRename(${idx})">Save</button>
           <button class="danger-text" onclick="deleteCategoryEntry(${idx})">Delete</button>
@@ -1738,6 +1766,16 @@ async function saveCategoryRenameRetry(idx){
   }
   renderManageCategoriesModal();
 }
+async function moveCategory(idx, dir){
+  const newIdx = idx+dir;
+  if(newIdx<0 || newIdx>=categories.length) return;
+  const tmp = categories[idx];
+  categories[idx] = categories[newIdx];
+  categories[newIdx] = tmp;
+  renderManageCategoriesModal();
+  const ok = await saveCategories();
+  if(!ok) showToast('Order changed but not synced — check internet');
+}
 async function deleteCategoryEntry(idx){
   categories.splice(idx,1);
   await saveCategories();
@@ -1787,8 +1825,14 @@ function renderManageCatModal(cat){
   overlay.innerHTML = `
     <div class="modal">
       <h3>${cat} — Edit Sub-Categories</h3>
-      ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No sub-categories yet.</p>' : list.map((p,idx)=>`
-        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+      ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No sub-categories yet.</p>' : `
+      <p style="color:var(--muted); font-size:12px; margin-bottom:12px; line-height:1.6;">Use ▲ ▼ to reorder — this sets the order of the sub-category tabs.</p>
+      ` + list.map((p,idx)=>`
+        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <button class="secondary" style="padding:4px 8px; font-size:11px; line-height:1;" ${idx===0?'disabled':''} onclick="movePartType('${cat}',${idx},-1)">▲</button>
+            <button class="secondary" style="padding:4px 8px; font-size:11px; line-height:1;" ${idx===list.length-1?'disabled':''} onclick="movePartType('${cat}',${idx},1)">▼</button>
+          </div>
           <input id="pt_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="savePartTypeRename('${cat}',${idx})">Save</button>
           <button class="danger-text" onclick="deletePartTypeEntry('${cat}',${idx})">Delete</button>
@@ -1817,6 +1861,17 @@ async function savePartTypeRename(cat, idx){
   }
   if(document.getElementById('f_parttype')) populatePartTypeSelect(newVal);
   renderManageCatModal(cat);
+}
+async function movePartType(cat, idx, dir){
+  const list = partTypes[cat] || [];
+  const newIdx = idx+dir;
+  if(newIdx<0 || newIdx>=list.length) return;
+  const tmp = list[idx];
+  list[idx] = list[newIdx];
+  list[newIdx] = tmp;
+  renderManageCatModal(cat);
+  const ok = await savePartTypes();
+  if(!ok) showToast('Order changed but not synced — check internet');
 }
 async function deletePartTypeEntry(cat, idx){
   partTypes[cat].splice(idx,1);
@@ -1875,8 +1930,14 @@ function renderManageSubTypesModal(cat, sub){
   overlay.innerHTML = `
     <div class="modal">
       <h3>${sub} — Edit Types</h3>
-      ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No types yet.</p>' : list.map((p,idx)=>`
-        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+      ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No types yet.</p>' : `
+      <p style="color:var(--muted); font-size:12px; margin-bottom:12px; line-height:1.6;">Use ▲ ▼ to reorder — this sets the order of the type tabs.</p>
+      ` + list.map((p,idx)=>`
+        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <button class="secondary" style="padding:4px 8px; font-size:11px; line-height:1;" ${idx===0?'disabled':''} onclick="moveSubType('${key}',${idx},-1)">▲</button>
+            <button class="secondary" style="padding:4px 8px; font-size:11px; line-height:1;" ${idx===list.length-1?'disabled':''} onclick="moveSubType('${key}',${idx},1)">▼</button>
+          </div>
           <input id="st_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveSubTypeRename('${key}',${idx})">Save</button>
           <button class="danger-text" onclick="deleteSubTypeEntry('${key}',${idx})">Delete</button>
@@ -1903,6 +1964,18 @@ async function saveSubTypeRename(key, idx){
   const [cat, sub] = key.split('::');
   if(document.getElementById('f_subtype')) populateSubTypeSelect(newVal);
   renderManageSubTypesModal(cat, sub);
+}
+async function moveSubType(key, idx, dir){
+  const list = subPartTypes[key] || [];
+  const newIdx = idx+dir;
+  if(newIdx<0 || newIdx>=list.length) return;
+  const tmp = list[idx];
+  list[idx] = list[newIdx];
+  list[newIdx] = tmp;
+  const [cat, sub] = key.split('::');
+  renderManageSubTypesModal(cat, sub);
+  const ok = await saveSubPartTypes();
+  if(!ok) showToast('Order changed but not synced — check internet');
 }
 async function deleteSubTypeEntry(key, idx){
   subPartTypes[key].splice(idx,1);
@@ -1965,8 +2038,8 @@ async function renderModelCompat(){
     if(i.category!=='Model Compatibility') return false;
     if(modelCompatSubFilter!=='all' && i.partType!==modelCompatSubFilter) return false;
     if(!q) return true;
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = smartMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>smartMatch(m, q));
     return nameMatch || modelMatch;
   });
 
@@ -2073,8 +2146,8 @@ function renderItemSale(){
     if(saleFilter!=='all' && salePartTypeFilter!=='all' && i.partType!==salePartTypeFilter) return false;
     if(salePartTypeFilter!=='all' && saleSubTypeFilter!=='all' && i.subPartType!==saleSubTypeFilter) return false;
     if(!q) return true;
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = smartMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>smartMatch(m, q));
     return nameMatch || modelMatch;
   });
   list = list.sort((a,b)=>(a.qty===0?1:0)-(b.qty===0?1:0));
@@ -2116,17 +2189,6 @@ function renderServiceForm(){
         <label>Enter Service Name</label>
         <input id="svc_custom_name" placeholder="e.g. Software Update">
       </div>
-      <div id="svcSubTypeWrap" style="display:none">
-        <label style="display:flex; align-items:center; justify-content:space-between;">
-          <span>Repair Type (optional)</span>
-          <span style="color:var(--accent); cursor:pointer; font-size:12px; font-weight:600;" onclick="openManageServiceSubTypesModal()">Manage</span>
-        </label>
-        <select id="svc_subtype" onchange="checkAddNewServiceSubType()"></select>
-        <div id="newServiceSubTypeWrap" style="display:none">
-          <input id="f_new_servicesubtype" placeholder="e.g. Charging Port Repair">
-          <button class="secondary" style="width:100%; margin-bottom:14px" onclick="confirmNewServiceSubType()">Add Repair Type</button>
-        </div>
-      </div>
       <div id="partFieldsWrap" style="display:none">
         <label>Part/Screen Name (if a part was used)</label>
         <input id="svc_part_name" placeholder="e.g. Vivo Y20 Display">
@@ -2154,79 +2216,8 @@ function renderServiceForm(){
 function toggleServiceFields(){
   const type = document.getElementById('svc_type').value;
   document.getElementById('customNameWrap').style.display = type==='Other Service' ? 'block' : 'none';
-  document.getElementById('partFieldsWrap').style.display = SUBTYPE_SERVICE_TYPES.includes(type) ? 'block' : 'none';
-  const showSub = SUBTYPE_SERVICE_TYPES.includes(type);
-  document.getElementById('svcSubTypeWrap').style.display = showSub ? 'block' : 'none';
-  if(showSub) populateServiceSubTypeSelect();
+  document.getElementById('partFieldsWrap').style.display = (type==='Mobile Repair' || type==='Laptop Repair') ? 'block' : 'none';
   updateServiceProfitPreview();
-}
-function populateServiceSubTypeSelect(selectedValue){
-  const type = document.getElementById('svc_type').value;
-  const list = serviceSubTypes[type] || [];
-  const sel = document.getElementById('svc_subtype');
-  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${p}" ${selectedValue===p?'selected':''}>${p}</option>`).join('')
-    + `<option value="__add_new__">+ Add New Repair Type</option>`;
-  document.getElementById('newServiceSubTypeWrap').style.display = 'none';
-}
-function checkAddNewServiceSubType(){
-  const sel = document.getElementById('svc_subtype');
-  document.getElementById('newServiceSubTypeWrap').style.display = sel.value==='__add_new__' ? 'block' : 'none';
-}
-async function confirmNewServiceSubType(){
-  const type = document.getElementById('svc_type').value;
-  const name = document.getElementById('f_new_servicesubtype').value.trim();
-  if(!name){ showToast('Repair type name is required'); return; }
-  if(!serviceSubTypes[type]) serviceSubTypes[type] = [];
-  if(!serviceSubTypes[type].includes(name)) serviceSubTypes[type].push(name);
-  await saveServiceSubTypes();
-  populateServiceSubTypeSelect(name);
-  showToast('New repair type added ✓');
-}
-function openManageServiceSubTypesModal(){
-  const type = document.getElementById('svc_type').value;
-  renderManageServiceSubTypesModal(type);
-}
-function renderManageServiceSubTypesModal(type){
-  const existing = document.getElementById('manageSvcSubOverlay');
-  if(existing) existing.remove();
-  const list = serviceSubTypes[type] || [];
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.id = 'manageSvcSubOverlay';
-  overlay.innerHTML = `
-    <div class="modal">
-      <h3>${type} — Edit Repair Types</h3>
-      ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No repair types yet. Add one from the form.</p>' : list.map((p,idx)=>`
-        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-          <input id="svcsub_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
-          <button class="secondary" style="padding:10px 12px" onclick="saveServiceSubTypeRename('${type}',${idx})">Save</button>
-          <button class="danger-text" onclick="deleteServiceSubTypeEntry('${type}',${idx})">Delete</button>
-        </div>
-      `).join('')}
-      <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageSvcSubOverlay').remove()">Close</button>
-    </div>`;
-  document.getElementById('app').appendChild(overlay);
-  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
-}
-async function saveServiceSubTypeRename(type, idx){
-  const input = document.getElementById('svcsub_edit_'+idx);
-  const newVal = input.value.trim();
-  if(!newVal){ showToast('Name cannot be empty'); return; }
-  const oldVal = serviceSubTypes[type][idx];
-  if(newVal!==oldVal){
-    serviceSubTypes[type][idx] = newVal;
-    await saveServiceSubTypes();
-    showToast('Repair type updated ✓ (past sales keep their original label)');
-  }
-  if(document.getElementById('svc_subtype')) populateServiceSubTypeSelect(newVal);
-  renderManageServiceSubTypesModal(type);
-}
-async function deleteServiceSubTypeEntry(type, idx){
-  serviceSubTypes[type].splice(idx,1);
-  await saveServiceSubTypes();
-  showToast('Repair type deleted');
-  if(document.getElementById('svc_subtype')) populateServiceSubTypeSelect();
-  renderManageServiceSubTypesModal(type);
 }
 function updateServiceProfitPreview(){
   const amount = parseFloat(document.getElementById('svc_amount').value)||0;
@@ -2238,9 +2229,6 @@ function updateServiceProfitPreview(){
 async function submitService(){
   const type = document.getElementById('svc_type').value;
   const customName = document.getElementById('svc_custom_name') ? document.getElementById('svc_custom_name').value.trim() : '';
-  const subtypeSel = document.getElementById('svc_subtype');
-  let subType = subtypeSel ? subtypeSel.value : '';
-  if(subType==='__add_new__' || subType==='') subType = '';
   const partName = document.getElementById('svc_part_name') ? document.getElementById('svc_part_name').value.trim() : '';
   const partCost = document.getElementById('svc_part_cost') ? (parseFloat(document.getElementById('svc_part_cost').value)||0) : 0;
   const amount = parseFloat(document.getElementById('svc_amount').value)||0;
@@ -2250,8 +2238,7 @@ async function submitService(){
   if(amount<=0){ showToast('Charge amount is required'); return; }
 
   let name = (type==='Other Service' && customName) ? customName : type;
-  if(subType) name = subType;
-  if(partName) name = partName + ' (' + (subType || type) + ')';
+  if(partName) name = partName + ' (' + type + ')';
 
   let customerId = null;
   if(customerName) customerId = await findOrCreateCustomer(customerName, customerPhone);
@@ -2264,7 +2251,7 @@ async function submitService(){
     qty, unitCost: partCost, unitSell: amount,
     totalSell: amount*qty, totalProfit: (amount-partCost)*qty,
     time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
-    isService: true, category: type, serviceSubType: subType||null, customerName: customerName||null, customerId
+    isService: true, category: type, customerName: customerName||null, customerId
   });
   await saveSales(dateToUse, sales);
   showToast(dateToUse===todayStr() ? 'Added ✓' : `Added for ${dateToUse} ✓`);
@@ -2594,145 +2581,12 @@ async function renderReport(){
   }
   await renderReportBody();
 }
-let advanceCategory = null;
-let advancePartType = null;
-let advanceSubPartType = null;
 function setReportPeriod(p){ reportPeriod = p; renderReport(); }
-function setReportSubTab(t){ reportSubTab = t; if(t==='advance'){ advanceCategory=null; advancePartType=null; advanceSubPartType=null; } renderReportBody(); }
-function setAdvanceSort(s){ advanceSort = s; renderReportBody(); }
-function drillAdvance(level, name){
-  if(level==='category'){ advanceCategory = name; advancePartType = null; advanceSubPartType = null; }
-  else if(level==='partType'){ advancePartType = name; advanceSubPartType = null; }
-  else if(level==='subPartType'){ advanceSubPartType = name; }
-  renderReportBody();
-}
-function breadcrumbAdvance(toLevel){
-  if(toLevel==='root'){ advanceCategory=null; advancePartType=null; advanceSubPartType=null; }
-  else if(toLevel==='category'){ advancePartType=null; advanceSubPartType=null; }
-  else if(toLevel==='partType'){ advanceSubPartType=null; }
-  renderReportBody();
-}
-/* ---- Advance tab: drill-down ranking (Category -> Sub-Category -> Sub-Sub-Category -> Hero Product/Service) ---- */
-function getSalePartType(s){
-  if(s.isService) return s.serviceSubType || null;
-  if(s.itemId){ const it = items.find(i=>i.id===s.itemId); if(it) return it.partType || null; }
-  return null;
-}
-function getSaleSubPartType(s){
-  if(s.itemId){ const it = items.find(i=>i.id===s.itemId); if(it) return it.subPartType || null; }
-  return null;
-}
-function getAdvanceFilteredSales(sales){
-  let filtered = sales;
-  if(advanceCategory) filtered = filtered.filter(s=>getSaleCategory(s)===advanceCategory);
-  if(advancePartType) filtered = filtered.filter(s=>getSalePartType(s)===advancePartType);
-  if(advanceSubPartType) filtered = filtered.filter(s=>getSaleSubPartType(s)===advanceSubPartType);
-  return filtered;
-}
-function getAdvanceLevel(filtered){
-  if(!advanceCategory) return 'category';
-  if(!advancePartType) return filtered.some(s=>getSalePartType(s)) ? 'partType' : 'product';
-  if(!advanceSubPartType) return filtered.some(s=>getSaleSubPartType(s)) ? 'subPartType' : 'product';
-  return 'product';
-}
-function groupAdvanceSales(filtered, level){
-  const map = {};
-  filtered.forEach(s=>{
-    let key, name;
-    if(level==='category'){ key = getSaleCategory(s); name = key; }
-    else if(level==='partType'){ key = getSalePartType(s) || 'Other'; name = key; }
-    else if(level==='subPartType'){ key = getSaleSubPartType(s) || 'Other'; name = key; }
-    else { key = s.itemId ? ('item::'+s.itemId) : ('name::'+s.name); name = s.name; }
-    if(!map[key]) map[key] = { key, name, qty:0, sale:0, profit:0 };
-    map[key].qty += (s.qty||0);
-    map[key].sale += s.totalSell;
-    map[key].profit += s.totalProfit;
-  });
-  return Object.values(map);
-}
-function renderAdvanceBody(sales){
-  const filtered = getAdvanceFilteredSales(sales);
-  const level = getAdvanceLevel(filtered);
-  const groups = groupAdvanceSales(filtered, level);
-
-  // Breadcrumb trail
-  let crumbs = `<span onclick="breadcrumbAdvance('root')" style="cursor:pointer; ${!advanceCategory?'color:var(--text); font-weight:600;':'color:var(--accent);'}">All Categories</span>`;
-  if(advanceCategory) crumbs += ` <span style="color:var(--muted)">›</span> <span onclick="breadcrumbAdvance('category')" style="cursor:pointer; ${!advancePartType?'color:var(--text); font-weight:600;':'color:var(--accent);'}">${advanceCategory}</span>`;
-  if(advancePartType) crumbs += ` <span style="color:var(--muted)">›</span> <span onclick="breadcrumbAdvance('partType')" style="cursor:pointer; ${!advanceSubPartType?'color:var(--text); font-weight:600;':'color:var(--accent);'}">${advancePartType}</span>`;
-  if(advanceSubPartType) crumbs += ` <span style="color:var(--muted)">›</span> <span style="color:var(--text); font-weight:600;">${advanceSubPartType}</span>`;
-
-  const titleMap = { category:'Category Ranking', partType:'Sub-Category Ranking', subPartType:'Sub-Category Ranking', product:'Product / Service Ranking' };
-
-  if(groups.length===0){
-    return `<div style="font-size:12.5px; margin-bottom:10px;">${crumbs}</div><div class="section-title">${titleMap[level]}</div><div class="empty">No sales in this period.</div>`;
-  }
-  const sorted = [...groups].sort((a,b)=>{
-    if(advanceSort==='profit') return b.profit-a.profit;
-    if(advanceSort==='qty') return b.qty-a.qty;
-    return b.sale-a.sale;
-  });
-  const medal = ['🥇','🥈','🥉'];
-  let html = `
-    <div style="font-size:12.5px; margin-bottom:10px; line-height:1.6;">${crumbs}</div>
-    <div class="section-title" style="display:flex; align-items:center; justify-content:space-between;">
-      <span>${titleMap[level]}</span>
-    </div>
-    <div class="chips" style="margin-bottom:10px;">
-      <div class="chip ${advanceSort==='sale'?'active':''}" onclick="setAdvanceSort('sale')">By Sale</div>
-      <div class="chip ${advanceSort==='profit'?'active':''}" onclick="setAdvanceSort('profit')">By Profit</div>
-      <div class="chip ${advanceSort==='qty'?'active':''}" onclick="setAdvanceSort('qty')">By Qty</div>
-    </div>
-    <div class="card">`;
-  sorted.forEach((c,i)=>{
-    const rank = i<3 ? medal[i] : (i+1);
-    const heroTag = (level==='product' && i===0) ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:6px;">🦸 Hero</span>' : '';
-    const clickable = level!=='product';
-    const rowAttrs = clickable ? `style="cursor:pointer;" onclick="drillAdvance('${level}','${c.name.replace(/'/g,"\\'")}')"` : '';
-    const chevron = clickable ? '<span style="color:var(--muted); margin-left:6px;">›</span>' : '';
-    html += `<div class="sale-list-item" ${rowAttrs}>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div style="width:26px; text-align:center; font-size:${i<3?'16px':'12px'}; color:var(--muted); font-weight:600;">${rank}</div>
-        <div><div style="font-weight:600;">${c.name}${heroTag}</div><div class="t">Qty Sold: ${c.qty}</div></div>
-      </div>
-      <div style="text-align:right; display:flex; align-items:center; gap:2px;">
-        <div>
-          <div><b>${fmtMoney(c.sale)}</b></div>
-          <div class="t profit-val" data-amt="${c.profit}" style="color:var(--green); cursor:pointer" onclick="event.stopPropagation(); toggleProfitValue()">${profitVisible ? '+'+fmtMoney(c.profit) : '••••'}</div>
-        </div>
-        ${chevron}
-      </div>
-    </div>`;
-  });
-  html += '</div>';
-  return html;
-}
 async function renderReportBody(){
   const sales = await fetchReportSales();
   const totalSale = sales.reduce((s,x)=>s+x.totalSell,0);
   const totalProfit = sales.reduce((s,x)=>s+x.totalProfit,0);
   const periodLabel = reportPeriod==='daily' ? reportDate : (reportPeriod==='weekly' ? `Week ending ${reportDate}` : reportMonth);
-
-  const subTabsHtml = `
-    <div class="chips" style="margin-bottom:10px;">
-      <div class="chip ${reportSubTab==='overview'?'active':''}" onclick="setReportSubTab('overview')">Overview</div>
-      <div class="chip ${reportSubTab==='advance'?'active':''}" onclick="setReportSubTab('advance')">Advance</div>
-    </div>`;
-
-  if(reportSubTab==='advance'){
-    let html = `
-      <p style="color:var(--muted); font-size:12.5px; margin-bottom:10px;">${periodLabel}</p>
-      <div class="register">
-        <div class="reg-cell sale"><div class="lbl">Total Sale</div><div class="val">${fmtMoney(totalSale)}</div></div>
-        <div class="reg-divider"></div>
-        <div class="reg-cell profit"><div class="lbl">Total Profit</div><div class="val profit-val" data-amt="${totalProfit}" style="cursor:pointer" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'••••••'}</div></div>
-      </div>
-      ${subTabsHtml}
-      ${renderAdvanceBody(sales)}
-    `;
-    document.getElementById('reportBody').innerHTML = html;
-    return;
-  }
-
   const trendHtml = await renderTrendSection(sales, totalSale, totalProfit);
 
   let html = `
@@ -2742,7 +2596,6 @@ async function renderReportBody(){
       <div class="reg-divider"></div>
       <div class="reg-cell profit"><div class="lbl">Total Profit</div><div class="val profit-val" data-amt="${totalProfit}" style="cursor:pointer" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'••••••'}</div></div>
     </div>
-    ${subTabsHtml}
     ${trendHtml}
     <div class="section-title">Profit by Category</div>
     ${renderCategoryBreakdown(sales)}
@@ -3659,7 +3512,7 @@ async function exportBackup(){
 
   const backup = {
     exportedAt: new Date().toISOString(),
-    items, settings, partTypes, categories, subPartTypes, serviceSubTypes, creditEntries, shoppingList, expenseEntries, customers, repairJobs,
+    items, settings, partTypes, categories, subPartTypes, creditEntries, shoppingList, expenseEntries, customers, repairJobs,
     sales: salesData
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
@@ -3715,7 +3568,6 @@ async function confirmRestore(){
     if(data.partTypes) { partTypes = data.partTypes; await savePartTypes(); }
     if(data.categories) { categories = data.categories; await saveCategories(); }
     if(data.subPartTypes) { subPartTypes = data.subPartTypes; await saveSubPartTypes(); }
-    if(data.serviceSubTypes) { serviceSubTypes = data.serviceSubTypes; await saveServiceSubTypes(); }
     if(data.customers) { customers = data.customers; await saveCustomers(); }
     if(data.repairJobs) { repairJobs = data.repairJobs; await saveRepairJobs(); }
     if(data.creditEntries) { creditEntries = data.creditEntries; await saveCredit(); }
@@ -3784,7 +3636,7 @@ document.addEventListener('wheel', e=>{
     document.getElementById('view').innerHTML = `<div class="empty" style="padding:40px 20px; line-height:1.7;">Could not connect to the cloud database.<br>Please check your internet connection and reopen the app.</div>`;
     return;
   }
-  await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs()]);
+  await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadCustomers(), loadRepairJobs()]);
   // One-time default seeding, guarded by a flag so renamed categories/sub-categories
   // are never re-injected on later app loads (previously this ran every launch by
   // checking hardcoded default names, which kept resurrecting renamed categories).
