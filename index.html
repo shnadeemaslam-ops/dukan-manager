@@ -446,6 +446,48 @@ let saleDate = null;
 const SERVICE_TYPES = ['Mobile Repair','Laptop/PC Repair','Data Copy/Transfer','Other Service'];
 const SUBTYPE_SERVICE_TYPES = ['Mobile Repair','Laptop/PC Repair']; // services that support user-defined repair sub-categories
 let invFilter = 'all';
+let invReorderMode = false;
+function toggleInvReorder(){ invReorderMode = !invReorderMode; renderInventory(); }
+function escJs(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function renderReorderableChip(value, label, isActive, clickAction, moveLeftAction, moveRightAction){
+  if(value==='all' || !invReorderMode){
+    return `<div class="chip ${isActive?'active':''}" onclick="${clickAction}">${label}</div>`;
+  }
+  return `<div class="chip ${isActive?'active':''}" style="display:flex; align-items:center; gap:6px; padding-left:8px; padding-right:8px;">
+    <span onclick="event.stopPropagation(); ${moveLeftAction}" style="cursor:pointer; font-weight:700; padding:0 2px;">‹</span>
+    <span onclick="${clickAction}">${label}</span>
+    <span onclick="event.stopPropagation(); ${moveRightAction}" style="cursor:pointer; font-weight:700; padding:0 2px;">›</span>
+  </div>`;
+}
+function moveCategoryOrder(name, dir){
+  const idx = categories.indexOf(name);
+  const newIdx = idx+dir;
+  if(idx<0 || newIdx<0 || newIdx>=categories.length) return;
+  [categories[idx], categories[newIdx]] = [categories[newIdx], categories[idx]];
+  saveCategories();
+  renderInventory();
+}
+function movePartTypeOrder(name, dir){
+  const arr = partTypes[invFilter];
+  if(!arr) return;
+  const idx = arr.indexOf(name);
+  const newIdx = idx+dir;
+  if(idx<0 || newIdx<0 || newIdx>=arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  savePartTypes();
+  renderInventory();
+}
+function moveSubTypeOrder(name, dir){
+  const key = subPartKey(invFilter, invPartTypeFilter);
+  const arr = subPartTypes[key];
+  if(!arr) return;
+  const idx = arr.indexOf(name);
+  const newIdx = idx+dir;
+  if(idx<0 || newIdx<0 || newIdx>=arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  saveSubPartTypes();
+  renderInventory();
+}
 let reportDate = todayStr();
 let reportPeriod = 'daily';
 let reportMonth = todayStr().slice(0,7);
@@ -469,6 +511,23 @@ function highlightModels(models, query){
   }).join(', ');
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+/* Fuzzy, word-order-independent search: "t90" matches "T-90", and "mouse t90 gaming"
+   matches "Gaming Mouse T-90" regardless of word order, spacing, or hyphens. */
+function fuzzyTextMatch(text, query){
+  if(!query) return true;
+  const norm = s => s.toLowerCase().replace(/[-_]/g,' ').replace(/\s+/g,' ').trim();
+  const normText = norm(text);
+  const normTextTight = normText.replace(/ /g,'');
+  const normQuery = norm(query);
+  const queryTight = normQuery.replace(/ /g,'');
+  if(!queryTight) return true;
+  if(normTextTight.includes(queryTight)) return true;
+  const queryWords = normQuery.split(' ').filter(Boolean);
+  if(queryWords.length>1){
+    return queryWords.every(w => normTextTight.includes(w.replace(/ /g,'')));
+  }
+  return false;
+}
 
 async function loadItems(){
   try{
@@ -1297,8 +1356,8 @@ function renderDashSearchResults(){
   const q = dashboardSearch.trim().toLowerCase();
   if(!q){ box.innerHTML=''; return; }
   const matches = items.filter(i=>{
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = fuzzyTextMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>fuzzyTextMatch(m, q));
     return nameMatch || modelMatch;
   });
   if(matches.length===0){
@@ -1359,8 +1418,8 @@ async function renderInventory(){
     if(invFilter!=='all' && invPartTypeFilter!=='all' && i.partType!==invPartTypeFilter) return false;
     if(invPartTypeFilter!=='all' && invSubTypeFilter!=='all' && i.subPartType!==invSubTypeFilter) return false;
     if(!q) return true;
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = fuzzyTextMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>fuzzyTextMatch(m, q));
     return nameMatch || modelMatch;
   });
   const inStockList = list.filter(i=>i.qty>0);
@@ -1378,6 +1437,9 @@ async function renderInventory(){
     <div class="chips" id="invChips"></div>
     <div class="chips" id="invPartChips" style="${invFilter!=='all'?'':'display:none'}"></div>
     <div class="chips" id="invSubChips" style="${(invFilter!=='all' && invPartTypeFilter!=='all')?'':'display:none'}"></div>
+    <div style="text-align:right; margin:-8px 0 14px;">
+      <span style="color:var(--accent); font-size:12px; cursor:pointer; font-weight:600;" onclick="toggleInvReorder()">${invReorderMode ? '✓ Done Reordering' : '↔ Reorder Tabs'}</span>
+    </div>
     ${isStaff ? '' : `<button class="primary" style="position:sticky; top:0; z-index:10; margin-bottom:14px; box-shadow:0 6px 14px rgba(11,18,32,.6);" onclick="openItemModal(null, invFilter, invPartTypeFilter, invSubTypeFilter)">+ Add New Item</button>`}
     <div id="invList"></div>
     <div class="register" style="margin:14px 0">
@@ -1395,15 +1457,15 @@ async function renderInventory(){
 
   const chips = document.getElementById('invChips');
   const cats = ['all', ...categories.filter(c=>c!=='Model Compatibility')];
-  chips.innerHTML = cats.map(c=>`<div class="chip ${invFilter===c?'active':''}" onclick="setInvFilter('${c}')">${c==='all'?'All':c}</div>`).join('');
+  chips.innerHTML = cats.map(c=>renderReorderableChip(c, c==='all'?'All':c, invFilter===c, `setInvFilter('${escJs(c)}')`, `moveCategoryOrder('${escJs(c)}',-1)`, `moveCategoryOrder('${escJs(c)}',1)`)).join('');
 
   const partChips = document.getElementById('invPartChips');
   const partCats = ['all', ...(partTypes[invFilter]||[])];
-  partChips.innerHTML = partCats.map(p=>`<div class="chip ${invPartTypeFilter===p?'active':''}" onclick="setInvPartFilter('${p}')">${p==='all'?'All':p}</div>`).join('');
+  partChips.innerHTML = partCats.map(p=>renderReorderableChip(p, p==='all'?'All':p, invPartTypeFilter===p, `setInvPartFilter('${escJs(p)}')`, `movePartTypeOrder('${escJs(p)}',-1)`, `movePartTypeOrder('${escJs(p)}',1)`)).join('');
 
   const subChips = document.getElementById('invSubChips');
   const subCats = ['all', ...(subPartTypes[subPartKey(invFilter, invPartTypeFilter)]||[])];
-  subChips.innerHTML = subCats.map(p=>`<div class="chip ${invSubTypeFilter===p?'active':''}" onclick="setInvSubFilter('${p}')">${p==='all'?'All':p}</div>`).join('');
+  subChips.innerHTML = subCats.map(p=>renderReorderableChip(p, p==='all'?'All':p, invSubTypeFilter===p, `setInvSubFilter('${escJs(p)}')`, `moveSubTypeOrder('${escJs(p)}',-1)`, `moveSubTypeOrder('${escJs(p)}',1)`)).join('');
 
   function renderItemCard(i){
     const badgeClass = i.qty===0?'out':(i.qty<=2?'low':'ok');
@@ -1965,8 +2027,8 @@ async function renderModelCompat(){
     if(i.category!=='Model Compatibility') return false;
     if(modelCompatSubFilter!=='all' && i.partType!==modelCompatSubFilter) return false;
     if(!q) return true;
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = fuzzyTextMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>fuzzyTextMatch(m, q));
     return nameMatch || modelMatch;
   });
 
@@ -2073,8 +2135,8 @@ function renderItemSale(){
     if(saleFilter!=='all' && salePartTypeFilter!=='all' && i.partType!==salePartTypeFilter) return false;
     if(salePartTypeFilter!=='all' && saleSubTypeFilter!=='all' && i.subPartType!==saleSubTypeFilter) return false;
     if(!q) return true;
-    const nameMatch = i.name.toLowerCase().includes(q);
-    const modelMatch = (i.models||[]).some(m=>m.toLowerCase().includes(q));
+    const nameMatch = fuzzyTextMatch(i.name, q);
+    const modelMatch = (i.models||[]).some(m=>fuzzyTextMatch(m, q));
     return nameMatch || modelMatch;
   });
   list = list.sort((a,b)=>(a.qty===0?1:0)-(b.qty===0?1:0));
