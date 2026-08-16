@@ -897,11 +897,21 @@ async function deleteSaleEntry(date, saleId){
     const it = items.find(i=>i.id===saleToDelete.itemId);
     if(it){ it.qty += saleToDelete.qty; await saveItem(it); }
   }
+  let creditRemoved = false;
+  if(saleToDelete && (saleToDelete.paymentMethod==='credit' || saleToDelete.paymentMethod==='partial')){
+    const linkedIndex = creditEntries.findIndex(c=>c.saleId===saleId);
+    if(linkedIndex>-1){
+      creditEntries.splice(linkedIndex, 1);
+      await saveCredit();
+      creditRemoved = true;
+    }
+  }
   const overlay = document.getElementById('deleteSaleOverlay');
   if(overlay) overlay.remove();
-  showToast('Sale deleted');
+  showToast(creditRemoved ? 'Sale deleted & Udhaar entry removed' : 'Sale deleted');
   if(currentView==='dashboard') await renderDashboard();
   else if(currentView==='report') await renderReportBody();
+  else if(currentView==='credit') await renderCredit();
 }
 
 async function openEditSaleModal(dateStr, saleId){
@@ -1338,7 +1348,7 @@ async function renderDashboard(){
     html += '<div class="card">';
     sales.slice().reverse().forEach(s=>{
       const tag = s.isService ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">Service</span>' : (s.isPart ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">Part Repair</span>' : '');
-      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : '';
+      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : (s.paymentMethod==='partial' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>' : '');
       const checked = selectedSaleIds.has(s.id) ? 'checked' : '';
       html += `<div class="sale-list-item">
         <div style="display:flex; align-items:center; gap:10px;">
@@ -2414,11 +2424,17 @@ function openSaleModal(id){
       <input id="saleCustomerPhone" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('saleCustomerName','saleCustomerPhone')}
       <label>Payment</label>
-      <div style="display:flex; gap:10px; margin-bottom:14px;">
-        <div id="salePayCash" class="chip active" style="flex:1; text-align:center; padding:10px;" onclick="setSalePaymentMethod('cash')">💵 Cash</div>
-        <div id="salePayCredit" class="chip" style="flex:1; text-align:center; padding:10px;" onclick="setSalePaymentMethod('credit')">📒 Udhaar (Credit)</div>
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <div id="salePayCash" class="chip active" style="flex:1; text-align:center; padding:10px; font-size:12.5px;" onclick="setSalePaymentMethod('cash')">💵 Full Cash</div>
+        <div id="salePayPartial" class="chip" style="flex:1; text-align:center; padding:10px; font-size:12.5px;" onclick="setSalePaymentMethod('partial')">🔀 Partial</div>
+        <div id="salePayCredit" class="chip" style="flex:1; text-align:center; padding:10px; font-size:12.5px;" onclick="setSalePaymentMethod('credit')">📒 Full Udhaar</div>
       </div>
-      <div id="saleCreditNote" style="display:none; color:var(--muted); font-size:12px; margin:-8px 0 14px;">Customer name is required for Udhaar — the full amount will be saved to the Credit Ledger as pending.</div>
+      <div id="salePartialWrap" style="display:none">
+        <label>Cash Received Now (Rs)</label>
+        <input id="salePartialCash" type="number" inputmode="decimal" value="0" oninput="updatePartialPreview()">
+        <div id="salePartialPreview" style="color:var(--muted); font-size:12px; margin:-8px 0 14px;"></div>
+      </div>
+      <div id="saleCreditNote" style="display:none; color:var(--muted); font-size:12px; margin:-8px 0 14px;">Customer name is required for Udhaar — the pending amount will be saved to the Credit Ledger.</div>
       <button class="primary" onclick="confirmSale('${id}')">Confirm Sale</button>
     </div>`;
   overlay.dataset.qty = 1;
@@ -2457,8 +2473,22 @@ function setSalePaymentMethod(method){
   const overlay = document.querySelector('.modal-overlay');
   overlay.dataset.paymentMethod = method;
   document.getElementById('salePayCash').classList.toggle('active', method==='cash');
+  document.getElementById('salePayPartial').classList.toggle('active', method==='partial');
   document.getElementById('salePayCredit').classList.toggle('active', method==='credit');
-  document.getElementById('saleCreditNote').style.display = method==='credit' ? 'block' : 'none';
+  document.getElementById('saleCreditNote').style.display = (method==='credit'||method==='partial') ? 'block' : 'none';
+  document.getElementById('salePartialWrap').style.display = method==='partial' ? 'block' : 'none';
+  if(method==='partial') updatePartialPreview();
+}
+function updatePartialPreview(){
+  const overlay = document.querySelector('.modal-overlay');
+  const qty = parseInt(overlay.dataset.qty)||1;
+  const price = parseFloat(document.getElementById('salePriceInput').value)||0;
+  const total = price*qty;
+  let cash = parseFloat(document.getElementById('salePartialCash').value)||0;
+  if(cash<0) cash=0;
+  if(cash>total) cash=total;
+  const remaining = total-cash;
+  document.getElementById('salePartialPreview').textContent = `Total: ${fmtMoney(total)} · Cash now: ${fmtMoney(cash)} · Udhaar (pending): ${fmtMoney(remaining)}`;
 }
 async function confirmSale(id){
   const overlay = document.querySelector('.modal-overlay');
@@ -2469,10 +2499,26 @@ async function confirmSale(id){
   const customerPhoneInput = document.getElementById('saleCustomerPhone');
   const customerPhone = customerPhoneInput ? customerPhoneInput.value.trim() : '';
   const paymentMethod = overlay.dataset.paymentMethod || 'cash';
-  if(paymentMethod==='credit' && !customerName){
+  const totalSell = salePrice*qty;
+
+  let cashReceived = totalSell, creditAmount = 0;
+  if(paymentMethod==='credit'){
+    cashReceived = 0; creditAmount = totalSell;
+  } else if(paymentMethod==='partial'){
+    cashReceived = parseFloat(document.getElementById('salePartialCash').value)||0;
+    if(cashReceived<0) cashReceived = 0;
+    if(cashReceived>totalSell) cashReceived = totalSell;
+    creditAmount = totalSell - cashReceived;
+  }
+  if((paymentMethod==='credit'||paymentMethod==='partial') && !customerName){
     showToast('Customer name is required for Udhaar sales');
     return;
   }
+  if(paymentMethod==='partial' && creditAmount<=0){
+    showToast('Enter an amount less than the total for Partial, or use Full Cash instead');
+    return;
+  }
+
   const it = items.find(i=>i.id===id);
   it.qty -= qty;
   await saveItem(it);
@@ -2480,7 +2526,6 @@ async function confirmSale(id){
   let customerId = null;
   if(customerName) customerId = await findOrCreateCustomer(customerName, customerPhone);
 
-  const totalSell = salePrice*qty;
   const dateToUse = saleDate || todayStr();
   const sales = await loadSales(dateToUse);
   const now = new Date();
@@ -2491,20 +2536,24 @@ async function confirmSale(id){
     totalSell, totalProfit: (salePrice-it.cost)*qty,
     time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
     category: it.category, customerName: customerName||null, customerId,
-    paymentMethod
+    paymentMethod, cashReceived, creditAmount
   });
   await saveSales(dateToUse, sales);
 
-  if(paymentMethod==='credit'){
+  if(paymentMethod==='credit' || paymentMethod==='partial'){
+    const desc = paymentMethod==='partial'
+      ? `Item Sale — ${it.name} × ${qty} (Cash ${fmtMoney(cashReceived)} received, remaining on Udhaar)`
+      : `Item Sale — ${it.name} × ${qty}`;
     creditEntries.push({
-      id:uid(), customer:customerName, description:`Item Sale — ${it.name} × ${qty}`,
-      amount: totalSell, paid:false, date:dateToUse, paidDate:null, payments:[], saleId
+      id:uid(), customer:customerName, description:desc,
+      amount: creditAmount, paid:false, date:dateToUse, paidDate:null, payments:[], saleId
     });
     await saveCredit();
   }
 
   overlay.remove();
-  showToast(paymentMethod==='credit' ? (dateToUse===todayStr() ? 'Sale added on Udhaar ✓' : `Sale added on Udhaar for ${dateToUse} ✓`) : (dateToUse===todayStr() ? 'Sale added ✓' : `Sale added for ${dateToUse} ✓`));
+  const msg = paymentMethod==='credit' ? 'Sale added on Udhaar ✓' : (paymentMethod==='partial' ? 'Sale added — partial Udhaar recorded ✓' : 'Sale added ✓');
+  showToast(dateToUse===todayStr() ? msg : msg.replace('✓', `for ${dateToUse} ✓`));
   renderSale();
 }
 
@@ -2904,7 +2953,7 @@ async function renderReportBody(){
     html += '<div class="card">';
     sales.forEach(s=>{
       const tag = s.isService ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">Service</span>' : (s.isPart ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">Part Repair</span>' : '');
-      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : '';
+      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : (s.paymentMethod==='partial' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>' : '');
       const dateTag = reportPeriod!=='daily' ? `<span style="color:var(--muted)"> · ${s._date}</span>` : '';
       const checked = reportSelectedSales.has(`${s._date}::${s.id}`) ? 'checked' : '';
       html += `<div class="sale-list-item">
