@@ -3220,8 +3220,8 @@ async function renderShopping(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${s.itemName}</div>
-          ${s.customer ? `<div class="item-cat">For: ${s.customer}</div>` : ''}
+          <div class="item-name">${s.itemName} ${s.category ? `<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">${s.category}</span>` : ''}</div>
+          ${s.customer ? `<div class="item-cat">For: ${s.customer}${s.customerPhone ? ' · '+s.customerPhone : ''}</div>` : ''}
           <div class="item-prices">${s.date}${s.bought?' · Bought on '+s.boughtDate:''}</div>
         </div>
         <span class="badge ${s.bought?'ok':'low'}">${s.bought?'Bought':'Pending'}</span>
@@ -3242,18 +3242,53 @@ function openShoppingModal(){
       <h3>Add Item to Shopping List</h3>
       <label>Item Name</label>
       <input id="sh_item" placeholder="e.g. Vivo Y21 battery">
+      <label>Category (optional)</label>
+      <select id="sh_cat" onchange="checkAddNewShoppingCategory()"></select>
+      <div id="shNewCatWrap" style="display:none">
+        <input id="sh_new_cat" placeholder="e.g. Customer Order">
+        <button type="button" class="secondary" style="width:100%; margin-bottom:12px" onclick="confirmNewShoppingCategory()">Add Category</button>
+      </div>
       <label>For Which Customer (optional)</label>
-      <input id="sh_customer" placeholder="e.g. Ahmed Bhai">
+      <input id="sh_customer" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('sh_customer','sh_customer_phone')">
+      <label>Customer Phone Number (optional)</label>
+      <input id="sh_customer_phone" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('sh_customer','sh_customer_phone')}
       <button class="primary" onclick="saveShoppingItem()">Add</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  populateShoppingCategorySelect();
+  refreshCustomerDatalist();
+}
+function populateShoppingCategorySelect(selectedValue){
+  const sel = document.getElementById('sh_cat');
+  if(!sel) return;
+  sel.innerHTML = `<option value="">No category</option>` +
+    categories.filter(c=>c!=='Model Compatibility').map(c=>`<option value="${c}" ${selectedValue===c?'selected':''}>${c}</option>`).join('')
+    + `<option value="__add_new__">+ Add New Category</option>`;
+  document.getElementById('shNewCatWrap').style.display = 'none';
+}
+function checkAddNewShoppingCategory(){
+  const sel = document.getElementById('sh_cat');
+  document.getElementById('shNewCatWrap').style.display = sel.value==='__add_new__' ? 'block' : 'none';
+}
+async function confirmNewShoppingCategory(){
+  const name = document.getElementById('sh_new_cat').value.trim();
+  if(!name){ showToast('Category name is required'); return; }
+  if(!categories.includes(name)) categories.push(name);
+  await saveCategories();
+  populateShoppingCategorySelect(name);
+  showToast('New category added ✓');
 }
 async function saveShoppingItem(){
   const itemName = document.getElementById('sh_item').value.trim();
+  const catSel = document.getElementById('sh_cat');
+  const category = (catSel && catSel.value && catSel.value!=='__add_new__') ? catSel.value : '';
   const customer = document.getElementById('sh_customer').value.trim();
+  const customerPhone = document.getElementById('sh_customer_phone').value.trim();
   if(!itemName){ showToast('Item name is required'); return; }
-  shoppingList.push({id:uid(), itemName, customer, bought:false, date:todayStr(), boughtDate:null});
+  if(customer) await findOrCreateCustomer(customer, customerPhone);
+  shoppingList.push({id:uid(), itemName, category, customer, customerPhone, bought:false, date:todayStr(), boughtDate:null});
   await saveShopping();
   document.querySelector('.modal-overlay').remove();
   showToast('Added to shopping list');
