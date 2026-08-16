@@ -3035,7 +3035,7 @@ async function renderCredit(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${c.customer}</div>
+          <div class="item-name" style="cursor:pointer" onclick="goToCreditCustomer('${c.customer.replace(/'/g,"\\'")}')">${c.customer} <span style="color:var(--muted); font-size:22px; vertical-align:middle;">›</span></div>
           <div class="item-cat">${c.description}</div>
           <div class="item-prices">Total: <b>${fmtMoney(c.amount)}</b> · Paid: <b style="color:var(--green)">${fmtMoney(paidAmt)}</b> · Remaining: <b style="color:${remaining>0?'var(--red)':'var(--green)'}">${fmtMoney(remaining)}</b></div>
           <div class="item-prices">${c.date}${c.paid?' · Fully paid on '+c.paidDate:''}</div>
@@ -3045,39 +3045,62 @@ async function renderCredit(){
       </div>
       <div style="display:flex; gap:10px; margin-top:10px;">
         ${c.paid ? '' : `<button class="secondary" style="flex:1" onclick="openAddPaymentModal('${c.id}')">+ Add Payment</button>`}
+        <button class="icon-btn" style="padding:4px" title="Edit Entry" onclick="openCreditModal('${c.id}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+        </button>
         <button class="danger-text" onclick="deleteCreditEntry('${c.id}')">Delete</button>
       </div>
     </div>`;
   }).join('');
 }
 function setCreditFilter(f){ creditFilter=f; renderCredit(); }
-function openCreditModal(){
+function goToCreditCustomer(name){
+  const match = customers.find(c=>c.name.toLowerCase()===name.trim().toLowerCase());
+  if(match){ openCustomerDetail(match.id); }
+  else { showToast('No saved customer profile for this name yet — add one from Customers to track history'); }
+}
+function openCreditModal(existingId){
+  const editing = existingId ? creditEntries.find(x=>x.id===existingId) : null;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>Add Credit Entry</h3>
+      <h3>${editing ? 'Edit Credit Entry' : 'Add Credit Entry'}</h3>
       <label>Customer Name</label>
-      <input id="cr_customer" placeholder="e.g. Ahmed Bhai">
+      <input id="cr_customer" list="customerDatalist" value="${editing?editing.customer:''}" placeholder="e.g. Ahmed Bhai">
       <label>What For (item / service given)</label>
-      <input id="cr_desc" placeholder="e.g. Screen repair, Charger">
+      <input id="cr_desc" value="${editing?editing.description:''}" placeholder="e.g. Screen repair, Charger">
       <label>Amount Due (Rs)</label>
-      <input id="cr_amount" type="number" inputmode="decimal" placeholder="0">
-      <button class="primary" onclick="saveCreditEntry()">Add</button>
+      <input id="cr_amount" type="number" inputmode="decimal" value="${editing?editing.amount:''}" placeholder="0">
+      ${editing && editing.payments && editing.payments.length>0 ? `<p style="color:var(--muted); font-size:12px; margin:-8px 0 14px;">Already paid: ${fmtMoney(getCreditPaidAmount(editing))}. Lowering the amount below this will mark the entry as fully paid.</p>` : ''}
+      <button class="primary" onclick="saveCreditEntry('${editing?editing.id:''}')">${editing?'Save Changes':'Add'}</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  refreshCustomerDatalist();
 }
-async function saveCreditEntry(){
+async function saveCreditEntry(existingId){
   const customer = document.getElementById('cr_customer').value.trim();
   const description = document.getElementById('cr_desc').value.trim();
   const amount = parseFloat(document.getElementById('cr_amount').value)||0;
   if(!customer){ showToast('Customer name is required'); return; }
   if(amount<=0){ showToast('Amount is required'); return; }
-  creditEntries.push({id:uid(), customer, description, amount, paid:false, date:todayStr(), paidDate:null, payments:[]});
+  if(existingId){
+    const c = creditEntries.find(x=>x.id===existingId);
+    if(c){
+      c.customer = customer;
+      c.description = description;
+      c.amount = amount;
+      const paidAmt = getCreditPaidAmount(c);
+      if(paidAmt>=amount){ c.paid = true; if(!c.paidDate) c.paidDate = todayStr(); }
+      else { c.paid = false; c.paidDate = null; }
+    }
+  } else {
+    creditEntries.push({id:uid(), customer, description, amount, paid:false, date:todayStr(), paidDate:null, payments:[]});
+  }
   await saveCredit();
   document.querySelector('.modal-overlay').remove();
-  showToast('Credit entry added');
+  showToast(existingId ? 'Credit entry updated' : 'Credit entry added');
   renderCredit();
 }
 function openAddPaymentModal(id){
