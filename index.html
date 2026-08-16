@@ -3837,7 +3837,7 @@ async function exportBackup(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'shop-manager-backup-'+todayStr()+'.json';
+  a.download = 'Hassan Multimedia - Backup - '+todayStr()+'.json';
   document.body.appendChild(a);
   a.click();
   a.remove();
