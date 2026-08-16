@@ -731,6 +731,28 @@ function refreshCustomerDatalist(){
   if(!dl) return;
   dl.innerHTML = customers.map(c=>`<option value="${c.name}">`).join('');
 }
+/* Phone's native Contact Picker (Chrome on Android only). Feature-detected so the
+   button simply doesn't render on browsers/devices that don't support it. */
+const contactPickerSupported = (typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window);
+function contactPickBtn(nameFieldId, phoneFieldId){
+  if(!contactPickerSupported) return '';
+  return `<button type="button" class="secondary" style="padding:7px 10px; font-size:12px; margin:4px 0 10px; width:100%" onclick="pickContact('${nameFieldId}','${phoneFieldId}')">📱 Pick from Phone Contacts</button>`;
+}
+async function pickContact(nameFieldId, phoneFieldId){
+  if(!contactPickerSupported){ showToast('Contact picker not supported on this browser'); return; }
+  try{
+    const results = await navigator.contacts.select(['name','tel'], {multiple:false});
+    if(!results || results.length===0) return;
+    const c = results[0];
+    const nameEl = document.getElementById(nameFieldId);
+    const phoneEl = document.getElementById(phoneFieldId);
+    if(nameEl && c.name && c.name.length){ nameEl.value = c.name[0]; nameEl.dispatchEvent(new Event('input')); }
+    if(phoneEl && c.tel && c.tel.length){ phoneEl.value = c.tel[0]; }
+  }catch(e){
+    console.error(e);
+    if(e && e.name!=='AbortError') showToast('Could not read contact — try again');
+  }
+}
 
 let repairJobs = [];
 async function loadRepairJobs(){
@@ -903,6 +925,7 @@ async function openEditSaleModal(dateStr, saleId){
       <input id="es_customer" list="customerDatalist" value="${s.customerName||''}">
       <label>Customer Phone (optional)</label>
       <input id="es_phone" value="">
+      ${contactPickBtn('es_customer','es_phone')}
       <button class="primary" onclick="saveSaleEdit('${dateStr}','${saleId}')">Save Changes</button>
       ${s.itemId ? `<p style="color:var(--muted); font-size:12px; margin-top:10px; line-height:1.6;">Changing quantity here will also adjust the item's stock in Inventory.</p>` : ''}
     </div>`;
@@ -960,6 +983,7 @@ function openInvoiceModal(dateStr, saleId){
       <input id="inv_customer_name" placeholder="e.g. Ahmed Bhai">
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
       <button class="primary" onclick="generateInvoice('${dateStr}','${saleId}')">Print Invoice</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -1051,6 +1075,7 @@ function openMultiInvoiceModal(){
       <input id="inv_customer_name" placeholder="e.g. Ahmed Bhai">
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
       <button class="primary" onclick="generateMultiInvoice()">Print Combined Invoice</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -1224,6 +1249,7 @@ function openReportMultiInvoiceModal(){
       <input id="inv_customer_name" placeholder="e.g. Ahmed Bhai">
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
       <button class="primary" onclick="generateReportMultiInvoice()">Print Combined Invoice</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -1279,7 +1305,7 @@ async function renderDashboard(){
 
   let html = `
     <div class="search-wrap">
-      <input id="dashSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <input id="dashSearchInput" placeholder="Search item, model, customer name or phone" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
       <button type="button" class="mic-btn" id="dashMicBtn" onclick="startVoiceSearch('dash')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
@@ -1312,11 +1338,12 @@ async function renderDashboard(){
     html += '<div class="card">';
     sales.slice().reverse().forEach(s=>{
       const tag = s.isService ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">Service</span>' : (s.isPart ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">Part Repair</span>' : '');
+      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : '';
       const checked = selectedSaleIds.has(s.id) ? 'checked' : '';
       html += `<div class="sale-list-item">
         <div style="display:flex; align-items:center; gap:10px;">
           <input type="checkbox" ${checked} onchange="toggleSaleSelection('${s.id}')" style="width:18px; height:18px; accent-color:var(--accent); flex-shrink:0;">
-          <div><div>${s.name} × ${s.qty} ${tag}</div><div class="t">${s.time}</div></div>
+          <div><div>${s.name} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}</div></div>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:10px;">
           <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '••••'}</div></div>
@@ -1355,28 +1382,53 @@ function renderDashSearchResults(){
   const box = document.getElementById('dashSearchResults');
   const q = dashboardSearch.trim().toLowerCase();
   if(!q){ box.innerHTML=''; return; }
-  const matches = items.filter(i=>{
+  const qDigits = q.replace(/\D/g,'');
+
+  const customerMatches = customers.filter(c=>{
+    const nameMatch = fuzzyTextMatch(c.name, q);
+    const phoneDigits = (c.phone||'').replace(/\D/g,'');
+    const phoneMatch = qDigits.length>=3 && phoneDigits.includes(qDigits);
+    return nameMatch || phoneMatch;
+  });
+
+  const itemMatches = items.filter(i=>{
     const nameMatch = fuzzyTextMatch(i.name, q);
     const modelMatch = (i.models||[]).some(m=>fuzzyTextMatch(m, q));
     return nameMatch || modelMatch;
   });
-  if(matches.length===0){
-    box.innerHTML = `<div class="empty" style="padding:20px">No item found for "${dashboardSearch}" — not currently in stock.</div>`;
+
+  if(customerMatches.length===0 && itemMatches.length===0){
+    box.innerHTML = `<div class="empty" style="padding:20px">No item or customer found for "${dashboardSearch}".</div>`;
     return;
   }
-  box.innerHTML = '<div class="card">' + matches.map(i=>{
-    const badgeClass = i.qty===0?'out':(i.qty<=2?'low':'ok');
-    const badgeText = i.qty===0?'Out':i.qty+' pcs';
-    const catLabel = [i.category, i.partType, i.subPartType].filter(Boolean).join(' · ');
-    const modelsHtml = (i.models&&i.models.length>0) ? `<div class="item-cat" style="margin-top:2px">Fits: ${highlightModels(i.models, q)}</div>` : '';
-    return `<div style="padding:8px 0; border-bottom:1px solid var(--border)">
-      <div class="item-row">
-        <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${catLabel}</div>${modelsHtml}</div>
-        <span class="badge ${badgeClass}">${badgeText}</span>
-      </div>
-      <button class="secondary" style="width:100%; margin-top:8px; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
-    </div>`;
-  }).join('') + '</div>';
+
+  let html = '';
+
+  if(customerMatches.length>0){
+    html += `<div class="section-title">Customers</div><div class="card">` + customerMatches.map(c=>`
+      <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="openCustomerDetail('${c.id}')">
+        <div class="item-info"><div class="item-name">${c.name}</div><div class="item-cat">${c.phone || 'No phone number'}</div></div>
+        <span style="font-size:22px; color:var(--muted)">›</span>
+      </div>`).join('') + '</div>';
+  }
+
+  if(itemMatches.length>0){
+    html += `<div class="section-title">Items</div><div class="card">` + itemMatches.map(i=>{
+      const badgeClass = i.qty===0?'out':(i.qty<=2?'low':'ok');
+      const badgeText = i.qty===0?'Out':i.qty+' pcs';
+      const catLabel = [i.category, i.partType, i.subPartType].filter(Boolean).join(' · ');
+      const modelsHtml = (i.models&&i.models.length>0) ? `<div class="item-cat" style="margin-top:2px">Fits: ${highlightModels(i.models, q)}</div>` : '';
+      return `<div style="padding:8px 0; border-bottom:1px solid var(--border)">
+        <div class="item-row">
+          <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${catLabel}</div>${modelsHtml}</div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <button class="secondary" style="width:100%; margin-top:8px; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  box.innerHTML = html;
 }
 function setDashSearch(v){ dashboardSearch = v; renderDashSearchResults(); }
 function toggleSaleValue(){
@@ -2204,6 +2256,7 @@ function renderServiceForm(){
       <input id="svc_customer_name" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('svc_customer_name','svc_customer_phone')">
       <label>Customer Phone Number (optional)</label>
       <input id="svc_customer_phone" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('svc_customer_name','svc_customer_phone')}
       <button class="primary" onclick="submitService()">Add Karein</button>
       <p style="color:var(--muted); font-size:12px; margin-top:12px; line-height:1.6;">
         If it's only a labour charge, leave Part Cost blank — the full amount counts as profit. If you bought a part, enter its cost and the profit will be calculated automatically.
@@ -2359,9 +2412,17 @@ function openSaleModal(id){
       <input id="saleCustomerName" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('saleCustomerName','saleCustomerPhone')">
       <label>Customer Phone Number (optional)</label>
       <input id="saleCustomerPhone" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('saleCustomerName','saleCustomerPhone')}
+      <label>Payment</label>
+      <div style="display:flex; gap:10px; margin-bottom:14px;">
+        <div id="salePayCash" class="chip active" style="flex:1; text-align:center; padding:10px;" onclick="setSalePaymentMethod('cash')">💵 Cash</div>
+        <div id="salePayCredit" class="chip" style="flex:1; text-align:center; padding:10px;" onclick="setSalePaymentMethod('credit')">📒 Udhaar (Credit)</div>
+      </div>
+      <div id="saleCreditNote" style="display:none; color:var(--muted); font-size:12px; margin:-8px 0 14px;">Customer name is required for Udhaar — the full amount will be saved to the Credit Ledger as pending.</div>
       <button class="primary" onclick="confirmSale('${id}')">Confirm Sale</button>
     </div>`;
   overlay.dataset.qty = 1;
+  overlay.dataset.paymentMethod = 'cash';
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
   refreshCustomerDatalist();
@@ -2392,6 +2453,13 @@ function updateSalePricePreview(id){
   const price = parseFloat(document.getElementById('salePriceInput').value)||0;
   document.getElementById('profitPreview').textContent = fmtMoney((price-it.cost)*q);
 }
+function setSalePaymentMethod(method){
+  const overlay = document.querySelector('.modal-overlay');
+  overlay.dataset.paymentMethod = method;
+  document.getElementById('salePayCash').classList.toggle('active', method==='cash');
+  document.getElementById('salePayCredit').classList.toggle('active', method==='credit');
+  document.getElementById('saleCreditNote').style.display = method==='credit' ? 'block' : 'none';
+}
 async function confirmSale(id){
   const overlay = document.querySelector('.modal-overlay');
   const qty = parseInt(overlay.dataset.qty);
@@ -2400,6 +2468,11 @@ async function confirmSale(id){
   const customerName = customerNameInput ? customerNameInput.value.trim() : '';
   const customerPhoneInput = document.getElementById('saleCustomerPhone');
   const customerPhone = customerPhoneInput ? customerPhoneInput.value.trim() : '';
+  const paymentMethod = overlay.dataset.paymentMethod || 'cash';
+  if(paymentMethod==='credit' && !customerName){
+    showToast('Customer name is required for Udhaar sales');
+    return;
+  }
   const it = items.find(i=>i.id===id);
   it.qty -= qty;
   await saveItem(it);
@@ -2407,20 +2480,31 @@ async function confirmSale(id){
   let customerId = null;
   if(customerName) customerId = await findOrCreateCustomer(customerName, customerPhone);
 
+  const totalSell = salePrice*qty;
   const dateToUse = saleDate || todayStr();
   const sales = await loadSales(dateToUse);
   const now = new Date();
+  const saleId = uid();
   sales.push({
-    id: uid(), itemId: it.id, name: it.name, qty,
+    id: saleId, itemId: it.id, name: it.name, qty,
     unitCost: it.cost, unitSell: salePrice,
-    totalSell: salePrice*qty, totalProfit: (salePrice-it.cost)*qty,
+    totalSell, totalProfit: (salePrice-it.cost)*qty,
     time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
-    category: it.category, customerName: customerName||null, customerId
+    category: it.category, customerName: customerName||null, customerId,
+    paymentMethod
   });
   await saveSales(dateToUse, sales);
 
+  if(paymentMethod==='credit'){
+    creditEntries.push({
+      id:uid(), customer:customerName, description:`Item Sale — ${it.name} × ${qty}`,
+      amount: totalSell, paid:false, date:dateToUse, paidDate:null, payments:[], saleId
+    });
+    await saveCredit();
+  }
+
   overlay.remove();
-  showToast(dateToUse===todayStr() ? 'Sale added ✓' : `Sale added for ${dateToUse} ✓`);
+  showToast(paymentMethod==='credit' ? (dateToUse===todayStr() ? 'Sale added on Udhaar ✓' : `Sale added on Udhaar for ${dateToUse} ✓`) : (dateToUse===todayStr() ? 'Sale added ✓' : `Sale added for ${dateToUse} ✓`));
   renderSale();
 }
 
@@ -2820,12 +2904,13 @@ async function renderReportBody(){
     html += '<div class="card">';
     sales.forEach(s=>{
       const tag = s.isService ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">Service</span>' : (s.isPart ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">Part Repair</span>' : '');
+      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : '';
       const dateTag = reportPeriod!=='daily' ? `<span style="color:var(--muted)"> · ${s._date}</span>` : '';
       const checked = reportSelectedSales.has(`${s._date}::${s.id}`) ? 'checked' : '';
       html += `<div class="sale-list-item">
         <div style="display:flex; align-items:center; gap:10px;">
           <input type="checkbox" ${checked} onchange="toggleReportSaleSelection('${s._date}','${s.id}')" style="width:18px; height:18px; accent-color:var(--accent); flex-shrink:0;">
-          <div><div>${s.name} × ${s.qty} ${tag}</div><div class="t">${s.time}${dateTag}</div></div>
+          <div><div>${s.name} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}${dateTag}</div></div>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:10px;">
           <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '••••'}</div></div>
@@ -3299,6 +3384,7 @@ function openCustomerModal(existingId){
       <input id="cu_name" value="${editing?editing.name:''}" placeholder="e.g. Ahmed Bhai">
       <label>Phone Number</label>
       <input id="cu_phone" value="${editing?editing.phone:''}" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('cu_name','cu_phone')}
       <button class="primary" onclick="saveCustomerEntry('${editing?editing.id:''}')">${editing?'Update':'Add'}</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
