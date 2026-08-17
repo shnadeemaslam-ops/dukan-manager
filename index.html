@@ -3194,11 +3194,16 @@ async function deleteCreditEntry(id){
 }
 
 let shoppingFilter = 'pending';
+let shoppingCategoryFilter = 'all';
 async function renderShopping(){
   let list = shoppingList;
-  if(shoppingFilter==='pending') list = shoppingList.filter(s=>!s.bought);
-  else if(shoppingFilter==='bought') list = shoppingList.filter(s=>s.bought);
+  if(shoppingFilter==='pending') list = list.filter(s=>!s.bought);
+  else if(shoppingFilter==='bought') list = list.filter(s=>s.bought);
+  if(shoppingCategoryFilter==='__none__') list = list.filter(s=>!s.category);
+  else if(shoppingCategoryFilter!=='all') list = list.filter(s=>s.category===shoppingCategoryFilter);
   list = list.slice().reverse();
+
+  const catOptions = categories.filter(c=>c!=='Model Compatibility');
 
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
@@ -3206,6 +3211,11 @@ async function renderShopping(){
       <div class="chip ${shoppingFilter==='pending'?'active':''}" onclick="setShoppingFilter('pending')">To Buy</div>
       <div class="chip ${shoppingFilter==='bought'?'active':''}" onclick="setShoppingFilter('bought')">Purchased</div>
       <div class="chip ${shoppingFilter==='all'?'active':''}" onclick="setShoppingFilter('all')">All</div>
+    </div>
+    <div class="chips" style="margin-top:-6px">
+      <div class="chip ${shoppingCategoryFilter==='all'?'active':''}" onclick="setShoppingCategoryFilter('all')">All Categories</div>
+      ${catOptions.map(c=>`<div class="chip ${shoppingCategoryFilter===c?'active':''}" onclick="setShoppingCategoryFilter('${c.replace(/'/g,"\\'")}')">${c}</div>`).join('')}
+      <div class="chip ${shoppingCategoryFilter==='__none__'?'active':''}" onclick="setShoppingCategoryFilter('__none__')">No Category</div>
     </div>
     <div id="shoppingListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openShoppingModal()">+ Add Item to List</button>
@@ -3228,20 +3238,25 @@ async function renderShopping(){
       </div>
       <div style="display:flex; gap:10px; margin-top:10px;">
         ${s.bought ? '' : `<button class="secondary" style="flex:1" onclick="markShoppingBought('${s.id}')">✓ Got It</button>`}
+        <button class="icon-btn" style="padding:4px" title="Edit" onclick="openShoppingModal('${s.id}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+        </button>
         <button class="danger-text" onclick="deleteShoppingItem('${s.id}')">Delete</button>
       </div>
     </div>
   `).join('');
 }
 function setShoppingFilter(f){ shoppingFilter=f; renderShopping(); }
-function openShoppingModal(){
+function setShoppingCategoryFilter(c){ shoppingCategoryFilter=c; renderShopping(); }
+function openShoppingModal(existingId){
+  const editing = existingId ? shoppingList.find(x=>x.id===existingId) : null;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>Add Item to Shopping List</h3>
+      <h3>${editing ? 'Edit Shopping List Item' : 'Add Item to Shopping List'}</h3>
       <label>Item Name</label>
-      <input id="sh_item" placeholder="e.g. Vivo Y21 battery">
+      <input id="sh_item" value="${editing?editing.itemName:''}" placeholder="e.g. Vivo Y21 battery">
       <label>Category (optional)</label>
       <select id="sh_cat" onchange="checkAddNewShoppingCategory()"></select>
       <div id="shNewCatWrap" style="display:none">
@@ -3249,15 +3264,15 @@ function openShoppingModal(){
         <button type="button" class="secondary" style="width:100%; margin-bottom:12px" onclick="confirmNewShoppingCategory()">Add Category</button>
       </div>
       <label>For Which Customer (optional)</label>
-      <input id="sh_customer" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('sh_customer','sh_customer_phone')">
+      <input id="sh_customer" list="customerDatalist" value="${editing?editing.customer||'':''}" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('sh_customer','sh_customer_phone')">
       <label>Customer Phone Number (optional)</label>
-      <input id="sh_customer_phone" placeholder="e.g. 0300-1234567">
+      <input id="sh_customer_phone" value="${editing?editing.customerPhone||'':''}" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('sh_customer','sh_customer_phone')}
-      <button class="primary" onclick="saveShoppingItem()">Add</button>
+      <button class="primary" onclick="saveShoppingItem('${editing?editing.id:''}')">${editing?'Save Changes':'Add'}</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
-  populateShoppingCategorySelect();
+  populateShoppingCategorySelect(editing?editing.category:'');
   refreshCustomerDatalist();
 }
 function populateShoppingCategorySelect(selectedValue){
@@ -3280,7 +3295,7 @@ async function confirmNewShoppingCategory(){
   populateShoppingCategorySelect(name);
   showToast('New category added ✓');
 }
-async function saveShoppingItem(){
+async function saveShoppingItem(existingId){
   const itemName = document.getElementById('sh_item').value.trim();
   const catSel = document.getElementById('sh_cat');
   const category = (catSel && catSel.value && catSel.value!=='__add_new__') ? catSel.value : '';
@@ -3288,10 +3303,15 @@ async function saveShoppingItem(){
   const customerPhone = document.getElementById('sh_customer_phone').value.trim();
   if(!itemName){ showToast('Item name is required'); return; }
   if(customer) await findOrCreateCustomer(customer, customerPhone);
-  shoppingList.push({id:uid(), itemName, category, customer, customerPhone, bought:false, date:todayStr(), boughtDate:null});
+  if(existingId){
+    const s = shoppingList.find(x=>x.id===existingId);
+    if(s){ s.itemName = itemName; s.category = category; s.customer = customer; s.customerPhone = customerPhone; }
+  } else {
+    shoppingList.push({id:uid(), itemName, category, customer, customerPhone, bought:false, date:todayStr(), boughtDate:null});
+  }
   await saveShopping();
   document.querySelector('.modal-overlay').remove();
-  showToast('Added to shopping list');
+  showToast(existingId ? 'Shopping list item updated' : 'Added to shopping list');
   renderShopping();
 }
 async function markShoppingBought(id){
