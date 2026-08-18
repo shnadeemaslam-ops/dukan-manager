@@ -362,6 +362,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyC6wxzDYcVZc1VseNT0VrmePIaa89E1QUg",
@@ -393,7 +394,7 @@ async function loadCategories(){
   }catch(e){ console.error(e); }
 }
 async function saveCategories(){
-  try{ await db.collection('shop').doc('categories').set({list: categories}); return true; }
+  try{ await db.collection('shop').doc('categories').set({list: categories}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
 let partTypes = {
@@ -408,7 +409,7 @@ async function loadPartTypes(){
   }catch(e){ console.error(e); }
 }
 async function savePartTypes(){
-  try{ await db.collection('shop').doc('partTypes').set({value: partTypes}); return true; }
+  try{ await db.collection('shop').doc('partTypes').set({value: partTypes}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
 let serviceSubTypes = {
@@ -422,7 +423,7 @@ async function loadServiceSubTypes(){
   }catch(e){ console.error(e); }
 }
 async function saveServiceSubTypes(){
-  try{ await db.collection('shop').doc('serviceSubTypes').set({value: serviceSubTypes}); return true; }
+  try{ await db.collection('shop').doc('serviceSubTypes').set({value: serviceSubTypes}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
 let subPartTypes = {};
@@ -434,7 +435,7 @@ async function loadSubPartTypes(){
   }catch(e){ console.error(e); }
 }
 async function saveSubPartTypes(){
-  try{ await db.collection('shop').doc('subPartTypes').set({value: subPartTypes}); return true; }
+  try{ await db.collection('shop').doc('subPartTypes').set({value: subPartTypes}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
 let items = [];
@@ -560,6 +561,7 @@ async function saveItems(){
       batch.set(db.collection('items').doc(it.id), it);
     });
     await batch.commit();
+    scheduleAutoBackup();
   }catch(e){ showToast('Cloud save failed — check internet connection'); console.error(e); }
 }
 async function saveItem(it){
@@ -567,11 +569,13 @@ async function saveItem(it){
   // or deletes other items, so it can't wipe out changes made from another device.
   try{
     await db.collection('items').doc(it.id).set(it);
+    scheduleAutoBackup();
   }catch(e){ showToast('Cloud save failed — check internet connection'); console.error(e); }
 }
 async function deleteItemDoc(id){
   try{
     await db.collection('items').doc(id).delete();
+    scheduleAutoBackup();
   }catch(e){ showToast('Cloud save failed — check internet connection'); console.error(e); }
 }
 async function saveItemsBatch(itemsArr){
@@ -582,6 +586,7 @@ async function saveItemsBatch(itemsArr){
     const batch = db.batch();
     itemsArr.forEach(it=> batch.set(db.collection('items').doc(it.id), it));
     await batch.commit();
+    scheduleAutoBackup();
   }catch(e){ showToast('Cloud save failed — check internet connection'); console.error(e); }
 }
 async function loadSettings(){
@@ -591,7 +596,7 @@ async function loadSettings(){
   }catch(e){ console.error(e); }
 }
 async function saveSettings(){
-  try{ await db.collection('shop').doc('settings').set({value: settings}); }catch(e){ console.error(e); }
+  try{ await db.collection('shop').doc('settings').set({value: settings}); scheduleAutoBackup(); }catch(e){ console.error(e); }
 }
 
 let security = { passwordHash: null, staffPasswordHash: null };
@@ -625,7 +630,7 @@ async function loadSecurity(){
   }catch(e){ console.error(e); }
 }
 async function saveSecurity(){
-  try{ await db.collection('shop').doc('security').set({value: security}); }catch(e){ console.error(e); }
+  try{ await db.collection('shop').doc('security').set({value: security}); scheduleAutoBackup(); }catch(e){ console.error(e); }
 }
 async function sha256(text){
   const enc = new TextEncoder().encode(text);
@@ -639,7 +644,7 @@ async function loadSales(date){
   }catch(e){ console.error(e); return []; }
 }
 async function saveSales(date, arr){
-  try{ await db.collection('sales').doc(date).set({list: arr}); }
+  try{ await db.collection('sales').doc(date).set({list: arr}); scheduleAutoBackup(); }
   catch(e){ showToast('Sale could not be saved — check internet connection'); }
 }
 async function renameCategoryInSales(oldVal, newVal){
@@ -672,7 +677,7 @@ async function loadCredit(){
   }catch(e){ creditEntries = []; console.error(e); }
 }
 async function saveCredit(){
-  try{ await db.collection('shop').doc('creditEntries').set({list: creditEntries}); }
+  try{ await db.collection('shop').doc('creditEntries').set({list: creditEntries}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 
@@ -684,7 +689,7 @@ async function loadShopping(){
   }catch(e){ shoppingList = []; console.error(e); }
 }
 async function saveShopping(){
-  try{ await db.collection('shop').doc('shoppingList').set({list: shoppingList}); }
+  try{ await db.collection('shop').doc('shoppingList').set({list: shoppingList}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 
@@ -696,7 +701,7 @@ async function loadExpenses(){
   }catch(e){ expenseEntries = []; console.error(e); }
 }
 async function saveExpenses(){
-  try{ await db.collection('shop').doc('expenses').set({list: expenseEntries}); }
+  try{ await db.collection('shop').doc('expenses').set({list: expenseEntries}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 
@@ -709,7 +714,7 @@ async function loadCustomers(){
   }catch(e){ customers = []; console.error(e); }
 }
 async function saveCustomers(){
-  try{ await db.collection('shop').doc('customers').set({list: customers}); }
+  try{ await db.collection('shop').doc('customers').set({list: customers}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 async function findOrCreateCustomer(name, phone){
@@ -762,7 +767,7 @@ async function loadRepairJobs(){
   }catch(e){ repairJobs = []; console.error(e); }
 }
 async function saveRepairJobs(){
-  try{ await db.collection('shop').doc('repairJobs').set({list: repairJobs}); }
+  try{ await db.collection('shop').doc('repairJobs').set({list: repairJobs}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 
@@ -3906,6 +3911,8 @@ function openSettingsModal(){
       <p style="color:var(--muted); font-size:12px; line-height:1.6;">
         Backup saves all your items, sales history, categories and settings into one file. Restoring will replace all current data with what's in the backup file.
       </p>
+
+      ${buildDriveSettingsHTML()}
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
@@ -3990,21 +3997,24 @@ async function runMigrateModelCompat(){
   else if(currentView==='sale') renderSale();
 }
 
-async function exportBackup(){
-  showToast('Preparing backup...');
+async function buildBackupObject(){
   let salesData = {};
   try{
     const snapshot = await db.collection('sales').get();
     snapshot.forEach(doc=>{
       if(doc.data().list) salesData['sales:'+doc.id] = doc.data().list;
     });
-  }catch(e){ console.error(e); showToast('Could not fetch sales for backup'); }
-
-  const backup = {
+  }catch(e){ console.error(e); }
+  return {
     exportedAt: new Date().toISOString(),
     items, settings, partTypes, categories, subPartTypes, serviceSubTypes, creditEntries, shoppingList, expenseEntries, customers, repairJobs,
     sales: salesData
   };
+}
+
+async function exportBackup(){
+  showToast('Preparing backup...');
+  const backup = await buildBackupObject();
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -4015,6 +4025,160 @@ async function exportBackup(){
   a.remove();
   URL.revokeObjectURL(url);
   showToast('Backup downloaded ✓');
+}
+
+/* ---------------- GOOGLE DRIVE AUTO-BACKUP ---------------- */
+const GOOGLE_CLIENT_ID = '215828138055-ll3u0njtcg9n1qj062i3jrpeooniijlnc.apps.googleusercontent.com';
+const DRIVE_BACKUP_FILENAME = 'Hassan Multimedia - Auto Backup.json';
+let gDriveTokenClient = null;
+let gDriveAccessToken = null;
+let gDriveFileId = null;
+let gDriveConnected = false;
+let gDriveBackupTimer = null;
+let gDriveLastBackupAt = null;
+
+function loadDriveConnectedFlag(){
+  try{ return localStorage.getItem('shopManagerDriveConnected')==='1'; }catch(e){ return false; }
+}
+function setDriveConnectedFlag(val){
+  try{ localStorage.setItem('shopManagerDriveConnected', val ? '1' : '0'); }catch(e){}
+}
+
+function initGoogleDriveClient(){
+  if(!window.google || !google.accounts || !google.accounts.oauth2) return;
+  gDriveTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: async (resp)=>{
+      if(resp && resp.access_token){
+        gDriveAccessToken = resp.access_token;
+        gDriveConnected = true;
+        setDriveConnectedFlag(true);
+        showToast('Google Drive connected ✓');
+        await driveBackupNow();
+        if(document.getElementById('driveStatusText')) refreshSettingsDriveSection();
+      }
+    },
+  });
+  // If previously connected on this device, try a silent (no-prompt) token refresh
+  // in the background so auto-backup keeps working without asking to log in again.
+  if(loadDriveConnectedFlag()){
+    gDriveConnected = true;
+    silentDriveTokenRefresh();
+  }
+}
+function silentDriveTokenRefresh(){
+  if(!gDriveTokenClient) return;
+  try{ gDriveTokenClient.requestAccessToken({ prompt: '' }); }
+  catch(e){ console.error(e); }
+}
+function connectGoogleDrive(){
+  if(!gDriveTokenClient){ showToast('Google sign-in is still loading, try again in a moment'); return; }
+  gDriveTokenClient.requestAccessToken({ prompt: 'consent' });
+}
+function disconnectGoogleDrive(){
+  gDriveConnected = false;
+  gDriveAccessToken = null;
+  setDriveConnectedFlag(false);
+  showToast('Google Drive disconnected');
+  if(document.getElementById('driveStatusText')) refreshSettingsDriveSection();
+}
+
+async function ensureDriveToken(){
+  if(gDriveAccessToken) return true;
+  if(!gDriveTokenClient) return false;
+  return new Promise((resolve)=>{
+    const originalCallback = gDriveTokenClient.callback;
+    gDriveTokenClient.callback = async (resp)=>{
+      gDriveTokenClient.callback = originalCallback;
+      if(resp && resp.access_token){
+        gDriveAccessToken = resp.access_token;
+        resolve(true);
+      } else resolve(false);
+    };
+    try{ gDriveTokenClient.requestAccessToken({ prompt: '' }); }
+    catch(e){ resolve(false); }
+  });
+}
+
+async function findExistingDriveBackupFile(){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`name='${DRIVE_BACKUP_FILENAME}' and trashed=false`)}&spaces=drive&fields=files(id,name,modifiedTime)`, {
+    headers: { Authorization: 'Bearer '+gDriveAccessToken }
+  });
+  if(res.status===401){ gDriveAccessToken = null; return null; }
+  const data = await res.json();
+  if(data.files && data.files.length>0) return data.files[0].id;
+  return null;
+}
+
+async function uploadBackupToDrive(backup){
+  const boundary = 'shopmgrbackup';
+  const metadata = { name: DRIVE_BACKUP_FILENAME, mimeType: 'application/json' };
+  const body = JSON.stringify(backup, null, 2);
+  const multipartBody =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`+
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+
+  const url = gDriveFileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${gDriveFileId}?uploadType=multipart`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+  const res = await fetch(url, {
+    method: gDriveFileId ? 'PATCH' : 'POST',
+    headers: { Authorization: 'Bearer '+gDriveAccessToken, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body: multipartBody
+  });
+  if(res.status===401){ gDriveAccessToken = null; throw new Error('unauthorized'); }
+  if(!res.ok) throw new Error('drive upload failed: '+res.status);
+  const data = await res.json();
+  gDriveFileId = data.id;
+  return data;
+}
+
+async function driveBackupNow(showToasts){
+  if(!gDriveConnected) return;
+  const ok = await ensureDriveToken();
+  if(!ok){ if(showToasts) showToast('Could not connect to Google Drive — please reconnect'); return; }
+  try{
+    if(!gDriveFileId) gDriveFileId = await findExistingDriveBackupFile();
+    const backup = await buildBackupObject();
+    await uploadBackupToDrive(backup);
+    gDriveLastBackupAt = new Date();
+    if(showToasts) showToast('Backed up to Google Drive ✓');
+    if(document.getElementById('driveStatusText')) refreshSettingsDriveSection();
+  }catch(e){
+    console.error(e);
+    if(showToasts) showToast('Google Drive backup failed — check internet/connection');
+  }
+}
+function scheduleAutoBackup(){
+  // Debounced: waits until data changes settle for a bit before backing up,
+  // so rapid consecutive edits don't trigger a Drive upload for each one.
+  if(!gDriveConnected) return;
+  if(gDriveBackupTimer) clearTimeout(gDriveBackupTimer);
+  gDriveBackupTimer = setTimeout(()=>{ driveBackupNow(false); }, 20000);
+}
+function refreshSettingsDriveSection(){
+  const el = document.getElementById('driveSettingsSection');
+  if(el) el.outerHTML = buildDriveSettingsHTML();
+}
+function buildDriveSettingsHTML(){
+  const statusLine = gDriveConnected
+    ? `Connected ✓ ${gDriveLastBackupAt ? '— last backup: '+gDriveLastBackupAt.toLocaleString() : '(backing up automatically after changes)'}`
+    : 'Not connected';
+  return `
+    <div id="driveSettingsSection">
+      <div class="section-title" style="margin-top:22px">Google Drive Auto-Backup</div>
+      <p id="driveStatusText" style="color:var(--muted); font-size:13px; margin-bottom:10px;">${statusLine}</p>
+      ${gDriveConnected ? `
+        <button class="secondary" style="width:100%; margin-bottom:10px" onclick="driveBackupNow(true)">☁ Backup to Drive Now</button>
+        <button class="danger-text" onclick="disconnectGoogleDrive()">Disconnect Google Drive</button>
+      ` : `
+        <button class="secondary" style="width:100%; margin-bottom:10px" onclick="connectGoogleDrive()">🔗 Connect Google Drive</button>
+      `}
+      <p style="color:var(--muted); font-size:12px; margin-top:8px; line-height:1.6;">
+        Once connected, a backup file is automatically saved/updated on your Google Drive a short while after any change — items, sales, categories or settings.
+      </p>
+    </div>`;
 }
 
 async function handleRestoreFile(event){
@@ -4123,6 +4287,13 @@ document.addEventListener('wheel', e=>{
 /* ---------------- INIT ---------------- */
 (async function init(){
   loadSavedTheme();
+  // Google Identity Services script loads with defer, so it may not be ready
+  // yet at this point — poll briefly until it is, then set up Drive auth.
+  (function waitForGoogleIdentity(triesLeft){
+    if(window.google && google.accounts && google.accounts.oauth2){ initGoogleDriveClient(); return; }
+    if(triesLeft<=0) return;
+    setTimeout(()=>waitForGoogleIdentity(triesLeft-1), 300);
+  })(30);
   if(!firebaseReady || !db){
     document.getElementById('view').innerHTML = `<div class="empty" style="padding:40px 20px; line-height:1.7;">Could not connect to the cloud database.<br>Please check your internet connection and reopen the app.</div>`;
     return;
