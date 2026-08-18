@@ -1793,10 +1793,27 @@ function renderManageCategoriesModal(){
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
           <input id="cat_edit_${idx}" value="${c}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveCategoryRename(${idx})">Save</button>
-          <button class="danger-text" onclick="deleteCategoryEntry(${idx})">Delete</button>
+          <button class="danger-text" onclick="confirmDeleteCategoryEntry(${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+}
+function confirmDeleteCategoryEntry(idx){
+  const name = categories[idx];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'deleteCatConfirmOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Delete this Category?</h3>
+      <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
+        "${name}" category will be permanently removed. This cannot be undone.
+      </p>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteCatConfirmOverlay').remove(); deleteCategoryEntry(${idx})">Yes, Delete It</button>
+      <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteCatConfirmOverlay').remove()">Cancel</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
@@ -1915,7 +1932,7 @@ function renderManageCatModal(cat){
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
           <input id="pt_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="savePartTypeRename('${cat}',${idx})">Save</button>
-          <button class="danger-text" onclick="deletePartTypeEntry('${cat}',${idx})">Delete</button>
+          <button class="danger-text" onclick="confirmDeletePartTypeEntry('${cat}',${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
@@ -1941,6 +1958,23 @@ async function savePartTypeRename(cat, idx){
   }
   if(document.getElementById('f_parttype')) populatePartTypeSelect(newVal);
   renderManageCatModal(cat);
+}
+function confirmDeletePartTypeEntry(cat, idx){
+  const name = partTypes[cat][idx];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'deletePtConfirmOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Delete this Sub-Category?</h3>
+      <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
+        "${name}" will be permanently removed. This cannot be undone.
+      </p>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deletePtConfirmOverlay').remove(); deletePartTypeEntry('${cat}',${idx})">Yes, Delete It</button>
+      <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deletePtConfirmOverlay').remove()">Cancel</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
 async function deletePartTypeEntry(cat, idx){
   partTypes[cat].splice(idx,1);
@@ -2003,7 +2037,7 @@ function renderManageSubTypesModal(cat, sub){
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
           <input id="st_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveSubTypeRename('${key}',${idx})">Save</button>
-          <button class="danger-text" onclick="deleteSubTypeEntry('${key}',${idx})">Delete</button>
+          <button class="danger-text" onclick="confirmDeleteSubTypeEntry('${key}',${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
@@ -2027,6 +2061,23 @@ async function saveSubTypeRename(key, idx){
   const [cat, sub] = key.split('::');
   if(document.getElementById('f_subtype')) populateSubTypeSelect(newVal);
   renderManageSubTypesModal(cat, sub);
+}
+function confirmDeleteSubTypeEntry(key, idx){
+  const name = subPartTypes[key][idx];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'deleteStConfirmOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Delete this Type?</h3>
+      <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
+        "${name}" will be permanently removed. This cannot be undone.
+      </p>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteStConfirmOverlay').remove(); deleteSubTypeEntry('${key}',${idx})">Yes, Delete It</button>
+      <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteStConfirmOverlay').remove()">Cancel</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
 async function deleteSubTypeEntry(key, idx){
   subPartTypes[key].splice(idx,1);
@@ -2325,7 +2376,7 @@ function renderManageServiceSubTypesModal(type){
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
           <input id="svcsub_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveServiceSubTypeRename('${type}',${idx})">Save</button>
-          <button class="danger-text" onclick="deleteServiceSubTypeEntry('${type}',${idx})">Delete</button>
+          <button class="danger-text" onclick="confirmDeleteServiceSubTypeEntry('${type}',${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageSvcSubOverlay').remove()">Close</button>
@@ -2345,6 +2396,23 @@ async function saveServiceSubTypeRename(type, idx){
   }
   if(document.getElementById('svc_subtype')) populateServiceSubTypeSelect(newVal);
   renderManageServiceSubTypesModal(type);
+}
+function confirmDeleteServiceSubTypeEntry(type, idx){
+  const name = serviceSubTypes[type][idx];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'deleteSvcSubConfirmOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Delete this Repair Type?</h3>
+      <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
+        "${name}" will be permanently removed. This cannot be undone.
+      </p>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteSvcSubConfirmOverlay').remove(); deleteServiceSubTypeEntry('${type}',${idx})">Yes, Delete It</button>
+      <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteSvcSubConfirmOverlay').remove()">Cancel</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
 async function deleteServiceSubTypeEntry(type, idx){
   serviceSubTypes[type].splice(idx,1);
