@@ -4157,6 +4157,26 @@ function scheduleAutoBackup(){
   if(gDriveBackupTimer) clearTimeout(gDriveBackupTimer);
   gDriveBackupTimer = setTimeout(()=>{ driveBackupNow(false); }, 20000);
 }
+async function restoreFromDriveNow(){
+  if(!gDriveConnected){ showToast('Connect Google Drive first'); return; }
+  const ok = await ensureDriveToken();
+  if(!ok){ showToast('Could not connect to Google Drive — please reconnect'); return; }
+  showToast('Fetching backup from Drive...');
+  try{
+    if(!gDriveFileId) gDriveFileId = await findExistingDriveBackupFile();
+    if(!gDriveFileId){ showToast('No backup found on Google Drive yet'); return; }
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${gDriveFileId}?alt=media`, {
+      headers: { Authorization: 'Bearer '+gDriveAccessToken }
+    });
+    if(res.status===401){ gDriveAccessToken = null; showToast('Session expired — please try again'); return; }
+    if(!res.ok) throw new Error('drive download failed: '+res.status);
+    const data = await res.json();
+    openRestoreConfirmModal(data);
+  }catch(e){
+    console.error(e);
+    showToast('Could not fetch backup from Google Drive');
+  }
+}
 function refreshSettingsDriveSection(){
   const el = document.getElementById('driveSettingsSection');
   if(el) el.outerHTML = buildDriveSettingsHTML();
@@ -4171,6 +4191,7 @@ function buildDriveSettingsHTML(){
       <p id="driveStatusText" style="color:var(--muted); font-size:13px; margin-bottom:10px;">${statusLine}</p>
       ${gDriveConnected ? `
         <button class="secondary" style="width:100%; margin-bottom:10px" onclick="driveBackupNow(true)">☁ Backup to Drive Now</button>
+        <button class="secondary" style="width:100%; margin-bottom:10px" onclick="restoreFromDriveNow()">⬇ Restore from Google Drive</button>
         <button class="danger-text" onclick="disconnectGoogleDrive()">Disconnect Google Drive</button>
       ` : `
         <button class="secondary" style="width:100%; margin-bottom:10px" onclick="connectGoogleDrive()">🔗 Connect Google Drive</button>
