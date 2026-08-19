@@ -999,7 +999,8 @@ function openInvoiceModal(dateStr, saleId){
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
-      <button class="primary" onclick="generateInvoice('${dateStr}','${saleId}')">Print Invoice</button>
+      <button class="primary" onclick="generateInvoice('${dateStr}','${saleId}','print')">🖨 Print Invoice</button>
+      <button class="secondary" style="width:100%; margin-top:10px; background:#25D366; color:#fff; border-color:#25D366" onclick="generateInvoice('${dateStr}','${saleId}','whatsapp')">📲 Send via WhatsApp</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
@@ -1056,7 +1057,29 @@ function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, 
     </div>
   `;
 }
-async function generateInvoice(dateStr, saleId){
+/* ---------------- WHATSAPP INVOICE SENDING ---------------- */
+function formatPhoneForWhatsApp(phone){
+  let digits = (phone||'').replace(/\D/g,'');
+  if(!digits) return '';
+  if(digits.startsWith('0')) digits = '92'+digits.slice(1); // Pakistan: leading 0 -> country code 92
+  else if(digits.startsWith('3') && digits.length===10) digits = '92'+digits; // e.g. 3001234567
+  return digits;
+}
+function buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems){
+  const grandTotal = lineItems.reduce((s,li)=>s+li.totalSell, 0);
+  const rows = lineItems.map(li=>`• ${li.name} x${li.qty} — ${fmtMoney(li.totalSell)}`).join('\n');
+  return `*${settings.shopName}*\nInvoice #${String(invoiceNumber).padStart(5,'0')}\nDate: ${dateStr}\n\n${rows}\n\n*Grand Total: ${fmtMoney(grandTotal)}*\n\nThank you for choosing ${settings.shopName}!`;
+}
+function sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, lineItems){
+  const text = buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems);
+  const encoded = encodeURIComponent(text);
+  const phone = formatPhoneForWhatsApp(customerMobile);
+  const url = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+  window.open(url, '_blank');
+  if(!phone) showToast('No customer number — pick a contact on WhatsApp to send to');
+}
+async function generateInvoice(dateStr, saleId, action){
+  action = action || 'print';
   const sales = await loadSales(dateStr);
   const s = sales.find(x=>x.id===saleId);
   if(!s){ showToast('Sale not found'); return; }
@@ -1076,6 +1099,10 @@ async function generateInvoice(dateStr, saleId){
   const overlay = document.querySelector('.modal-overlay');
   if(overlay) overlay.remove();
 
+  if(action==='whatsapp'){
+    sendInvoiceViaWhatsApp(s.invoiceNumber, dateStr, s.customerMobile, [s]);
+    return;
+  }
   document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(s.invoiceNumber, dateStr, s.customerName, s.customerMobile, [s]);
   setTimeout(()=>window.print(), 100);
 }
@@ -1091,12 +1118,14 @@ function openMultiInvoiceModal(){
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
-      <button class="primary" onclick="generateMultiInvoice()">Print Combined Invoice</button>
+      <button class="primary" onclick="generateMultiInvoice('print')">🖨 Print Combined Invoice</button>
+      <button class="secondary" style="width:100%; margin-top:10px; background:#25D366; color:#fff; border-color:#25D366" onclick="generateMultiInvoice('whatsapp')">📲 Send via WhatsApp</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
-async function generateMultiInvoice(){
+async function generateMultiInvoice(action){
+  action = action || 'print';
   const dateStr = todayStr();
   const sales = await loadSales(dateStr);
   const selected = sales.filter(s=>selectedSaleIds.has(s.id));
@@ -1119,8 +1148,12 @@ async function generateMultiInvoice(){
   const overlay = document.querySelector('.modal-overlay');
   if(overlay) overlay.remove();
 
-  document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, selected);
-  setTimeout(()=>window.print(), 100);
+  if(action==='whatsapp'){
+    sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, selected);
+  } else {
+    document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, selected);
+    setTimeout(()=>window.print(), 100);
+  }
   selectedSaleIds.clear();
   renderDashboard();
 }
@@ -1265,12 +1298,14 @@ function openReportMultiInvoiceModal(){
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
-      <button class="primary" onclick="generateReportMultiInvoice()">Print Combined Invoice</button>
+      <button class="primary" onclick="generateReportMultiInvoice('print')">🖨 Print Combined Invoice</button>
+      <button class="secondary" style="width:100%; margin-top:10px; background:#25D366; color:#fff; border-color:#25D366" onclick="generateReportMultiInvoice('whatsapp')">📲 Send via WhatsApp</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
-async function generateReportMultiInvoice(){
+async function generateReportMultiInvoice(action){
+  action = action || 'print';
   const customerName = document.getElementById('inv_customer_name').value.trim();
   const customerMobile = document.getElementById('inv_customer_mobile').value.trim();
 
@@ -1306,8 +1341,12 @@ async function generateReportMultiInvoice(){
   if(overlay) overlay.remove();
 
   const displayDate = dates.length===1 ? dates[0] : `${dates[0]} to ${dates[dates.length-1]}`;
-  document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(invoiceNumber, displayDate, customerName, customerMobile, combinedLineItems);
-  setTimeout(()=>window.print(), 100);
+  if(action==='whatsapp'){
+    sendInvoiceViaWhatsApp(invoiceNumber, displayDate, customerMobile, combinedLineItems);
+  } else {
+    document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(invoiceNumber, displayDate, customerName, customerMobile, combinedLineItems);
+    setTimeout(()=>window.print(), 100);
+  }
   reportSelectedSales.clear();
   await renderReportBody();
 }
