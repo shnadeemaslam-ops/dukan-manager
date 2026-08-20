@@ -3162,7 +3162,9 @@ async function submitService(){
   updateServiceProfitPreview();
 }
 
+let saleProfitVisible = false;
 function openSaleModal(id){
+  saleProfitVisible = false;
   const it = items.find(i=>i.id===id);
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -3177,7 +3179,8 @@ function openSaleModal(id){
       </div>
       <label>Sale Price (per piece) — change here to give a discount</label>
       <input id="salePriceInput" type="number" inputmode="decimal" value="${it.sell}" oninput="updateSalePricePreview('${id}')">
-      <div style="text-align:center; margin-bottom:16px; font-family:'JetBrains Mono'; color:var(--green)">Profit: <span id="profitPreview">${fmtMoney(it.sell-it.cost)}</span></div>
+      <div id="profitPreviewWrap" ondblclick="toggleSaleProfitPreview()" style="text-align:center; margin-bottom:2px; font-family:'JetBrains Mono'; color:var(--green); cursor:pointer; user-select:none;"><span id="profitPreview" data-amt="${it.sell-it.cost}">*****</span></div>
+      <div id="profitPreviewHint" style="text-align:center; font-size:10px; color:var(--muted); margin-bottom:14px;">Double-tap to reveal</div>
       <label>Customer Name (optional)</label>
       <input id="saleCustomerName" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('saleCustomerName','saleCustomerPhone')">
       <label>Customer Phone Number (optional)</label>
@@ -3227,7 +3230,21 @@ function updateSalePricePreview(id){
   const overlay = document.querySelector('.modal-overlay');
   const q = parseInt(overlay.dataset.qty);
   const price = parseFloat(document.getElementById('salePriceInput').value)||0;
-  document.getElementById('profitPreview').textContent = fmtMoney((price-it.cost)*q);
+  const amt = (price-it.cost)*q;
+  const el = document.getElementById('profitPreview');
+  if(el){
+    el.dataset.amt = amt;
+    el.textContent = saleProfitVisible ? ('Profit: '+fmtMoney(amt)) : '*****';
+  }
+}
+function toggleSaleProfitPreview(){
+  saleProfitVisible = !saleProfitVisible;
+  const el = document.getElementById('profitPreview');
+  if(!el) return;
+  const amt = parseFloat(el.dataset.amt)||0;
+  el.textContent = saleProfitVisible ? ('Profit: '+fmtMoney(amt)) : '*****';
+  const hint = document.getElementById('profitPreviewHint');
+  if(hint) hint.textContent = saleProfitVisible ? '' : 'Double-tap to reveal';
 }
 function setSalePaymentMethod(method){
   const overlay = document.querySelector('.modal-overlay');
