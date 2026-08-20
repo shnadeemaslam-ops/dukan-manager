@@ -698,6 +698,21 @@ async function saveShopping(){
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 
+/* Shopping List categories are a completely separate list from the main
+   Inventory/Sale categories above — adding or deleting one here never
+   touches Inventory, Sale, or Reports. */
+let shoppingCategories = ['Restock','Customer Order'];
+async function loadShoppingCategories(){
+  try{
+    const doc = await db.collection('shop').doc('shoppingCategories').get();
+    if(doc.exists && doc.data().list && doc.data().list.length) shoppingCategories = doc.data().list;
+  }catch(e){ console.error(e); }
+}
+async function saveShoppingCategories(){
+  try{ await db.collection('shop').doc('shoppingCategories').set({list: shoppingCategories}); scheduleAutoBackup(); return true; }
+  catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
+}
+
 let expenseEntries = [];
 async function loadExpenses(){
   try{
@@ -872,6 +887,7 @@ function refreshCurrentView(){
   else if(currentView==='repairJobs') renderRepairJobs();
   else if(currentView==='modelCompat') renderModelCompat();
   else if(currentView==='more') renderMore();
+  else if(currentView==='invoices') renderInvoiceList();
 }
 
 function showToast(msg){
@@ -1173,16 +1189,18 @@ async function saveInvoiceRecord(record){
 }
 let invoicesCache = null;
 let invoiceSearchQuery = '';
-async function loadAllInvoices(force){
-  if(invoicesCache && !force) return invoicesCache;
-  try{
-    const snap = await db.collection('invoices').get();
+let unsubInvoicesListener = null;
+// Kept subscribed for the whole session (started at app init) so invoices created on
+// another device (e.g. mobile vs PC) show up here live, without needing a page reload.
+function subscribeToInvoices(){
+  if(unsubInvoicesListener) return;
+  unsubInvoicesListener = db.collection('invoices').onSnapshot(snap=>{
     invoicesCache = snap.docs.map(d=>d.data()).sort((a,b)=> b.invoiceNumber - a.invoiceNumber);
-  }catch(e){ console.error(e); invoicesCache = []; }
-  return invoicesCache;
+    if(currentView==='invoices') renderInvoiceList();
+  }, e=>console.error(e));
 }
 async function renderInvoices(){
-  await loadAllInvoices();
+  subscribeToInvoices();
   document.getElementById('view').innerHTML = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
     <div class="search-wrap">
@@ -1196,6 +1214,12 @@ async function renderInvoices(){
 }
 function setInvoiceSearch(v){ invoiceSearchQuery = v; renderInvoiceList(); }
 function renderInvoiceList(){
+  const el = document.getElementById('invoiceListArea');
+  if(!el) return;
+  if(invoicesCache===null){
+    el.innerHTML = `<div class="empty">Loading invoices...</div>`;
+    return;
+  }
   const q = invoiceSearchQuery.trim().toLowerCase();
   const qDigits = q.replace(/\D/g,'');
   let list = invoicesCache || [];
@@ -1207,8 +1231,6 @@ function renderInvoiceList(){
       return numMatch || nameMatch || mobileMatch;
     });
   }
-  const el = document.getElementById('invoiceListArea');
-  if(!el) return;
   if(list.length===0){
     el.innerHTML = `<div class="empty">${q ? 'No invoice found for "'+invoiceSearchQuery+'"' : 'No invoices yet — invoices you Print, WhatsApp or Share as image will appear here.'}</div>`;
     return;
@@ -3950,8 +3972,6 @@ async function renderShopping(){
   else if(shoppingCategoryFilter!=='all') list = list.filter(s=>s.category===shoppingCategoryFilter);
   list = list.slice().reverse();
 
-  const catOptions = categories.filter(c=>c!=='Model Compatibility');
-
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
     <div class="chips">
@@ -3961,9 +3981,10 @@ async function renderShopping(){
     </div>
     <div class="chips" style="margin-top:-6px">
       <div class="chip ${shoppingCategoryFilter==='all'?'active':''}" onclick="setShoppingCategoryFilter('all')">All Categories</div>
-      ${catOptions.map(c=>`<div class="chip ${shoppingCategoryFilter===c?'active':''}" onclick="setShoppingCategoryFilter('${c.replace(/'/g,"\\'")}')">${c}</div>`).join('')}
+      ${shoppingCategories.map(c=>`<div class="chip ${shoppingCategoryFilter===c?'active':''}" onclick="setShoppingCategoryFilter('${c.replace(/'/g,"\\'")}')">${c}</div>`).join('')}
       <div class="chip ${shoppingCategoryFilter==='__none__'?'active':''}" onclick="setShoppingCategoryFilter('__none__')">No Category</div>
     </div>
+    <button class="secondary" style="margin:-4px 0 14px; padding:8px 12px; font-size:12.5px;" onclick="openManageShoppingCategoriesModal()">✎ Manage Categories (Rename / Delete)</button>
     <div id="shoppingListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openShoppingModal()">+ Add Item to List</button>
   `;
@@ -4026,7 +4047,7 @@ function populateShoppingCategorySelect(selectedValue){
   const sel = document.getElementById('sh_cat');
   if(!sel) return;
   sel.innerHTML = `<option value="">No category</option>` +
-    categories.filter(c=>c!=='Model Compatibility').map(c=>`<option value="${c}" ${selectedValue===c?'selected':''}>${c}</option>`).join('')
+    shoppingCategories.map(c=>`<option value="${c}" ${selectedValue===c?'selected':''}>${c}</option>`).join('')
     + `<option value="__add_new__">+ Add New Category</option>`;
   document.getElementById('shNewCatWrap').style.display = 'none';
 }
@@ -4037,10 +4058,58 @@ function checkAddNewShoppingCategory(){
 async function confirmNewShoppingCategory(){
   const name = document.getElementById('sh_new_cat').value.trim();
   if(!name){ showToast('Category name is required'); return; }
-  if(!categories.includes(name)) categories.push(name);
-  await saveCategories();
+  if(!shoppingCategories.includes(name)) shoppingCategories.push(name);
+  await saveShoppingCategories();
   populateShoppingCategorySelect(name);
   showToast('New category added ✓');
+}
+function openManageShoppingCategoriesModal(){ renderManageShoppingCategoriesModal(); }
+function renderManageShoppingCategoriesModal(){
+  const existing = document.getElementById('manageShCatOverlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'manageShCatOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Shopping List Categories</h3>
+      <p style="color:var(--muted); font-size:12px; margin:-6px 0 14px;">These are separate from your Inventory categories — changes here never affect Inventory, Sale, or Reports.</p>
+      ${shoppingCategories.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No categories yet.</p>' : shoppingCategories.map((c,idx)=>`
+        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+          <input id="sh_cat_edit_${idx}" value="${c}" style="margin-bottom:0; flex:1">
+          <button class="secondary" style="padding:10px 12px" onclick="saveShoppingCategoryRename(${idx})">Save</button>
+          <button class="danger-text" onclick="deleteShoppingCategoryEntry(${idx})">Delete</button>
+        </div>
+      `).join('')}
+      <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageShCatOverlay').remove()">Close</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+}
+async function saveShoppingCategoryRename(idx){
+  const input = document.getElementById('sh_cat_edit_'+idx);
+  const newVal = input.value.trim();
+  if(!newVal){ showToast('Name cannot be empty'); return; }
+  const oldVal = shoppingCategories[idx];
+  if(newVal!==oldVal){
+    shoppingCategories[idx] = newVal;
+    shoppingList.forEach(s=>{ if(s.category===oldVal) s.category = newVal; });
+    await saveShoppingCategories();
+    await saveShopping();
+    if(shoppingCategoryFilter===oldVal) shoppingCategoryFilter=newVal;
+    showToast('Category updated ✓');
+  }
+  if(document.getElementById('sh_cat')) populateShoppingCategorySelect(newVal);
+  renderManageShoppingCategoriesModal();
+}
+async function deleteShoppingCategoryEntry(idx){
+  const removedName = shoppingCategories[idx];
+  shoppingCategories.splice(idx,1);
+  await saveShoppingCategories();
+  showToast('Category deleted');
+  if(document.getElementById('sh_cat')) populateShoppingCategorySelect();
+  if(shoppingCategoryFilter===removedName) shoppingCategoryFilter='all';
+  renderManageShoppingCategoriesModal();
 }
 async function saveShoppingItem(existingId){
   const itemName = document.getElementById('sh_item').value.trim();
@@ -4993,7 +5062,8 @@ document.addEventListener('wheel', e=>{
     document.getElementById('view').innerHTML = `<div class="empty" style="padding:40px 20px; line-height:1.7;">Could not connect to the cloud database.<br>Please check your internet connection and reopen the app.</div>`;
     return;
   }
-  await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs()]);
+  await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs()]);
+  subscribeToInvoices();
   // One-time default seeding, guarded by a flag so renamed categories/sub-categories
   // are never re-injected on later app loads (previously this ran every launch by
   // checking hardcoded default names, which kept resurrecting renamed categories).
