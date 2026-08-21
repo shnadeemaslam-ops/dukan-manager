@@ -2626,6 +2626,7 @@ async function renderSale(){
     <label>Sale Date</label>
     <input type="date" id="saleDateInput" value="${saleDate}" max="${todayStr()}" onchange="setSaleDate(this.value)">
     <p id="saleDateHint" style="color:var(--muted); font-size:12px; margin:-10px 0 14px; display:none;">Adding sale for a past date — remember to change it back for today's sales.</p>
+    <div id="billBarWrap"></div>
     <div style="display:flex; gap:8px; margin-bottom:16px;">
       <button class="secondary" style="flex:1; ${saleMode==='item'?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="setSaleMode('item')">Sell Item</button>
       <button class="secondary" style="flex:1; ${saleMode==='service'?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="setSaleMode('service')">Repair / Service</button>
@@ -2633,6 +2634,30 @@ async function renderSale(){
     <div id="saleModeBody"></div>
   `;
   document.getElementById('view').innerHTML = html;
+  refreshBillBar();
+  if(saleMode==='item') renderItemSale();
+  else renderServiceForm();
+}
+function billBarHtml(){
+  return billActive ? `
+    <div class="card" style="border:1.5px solid var(--accent); margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-weight:700; font-size:14px;">🧾 Bill — ${billCustomer.name || 'Walk-in Customer'}</div>
+          <div style="color:var(--muted); font-size:12.5px; margin-top:2px;">${billCart.length} item${billCart.length===1?'':'s'} · ${fmtMoney(billCart.reduce((s,c)=>s+c.unitSell*c.qty,0))}</div>
+        </div>
+        <button class="secondary" style="padding:6px 10px; font-size:12px;" onclick="cancelBill()">✕ Cancel</button>
+      </div>
+      <button class="primary" style="width:100%; margin-top:10px;" onclick="openBillCheckoutModal()" ${billCart.length===0?'disabled':''}>View Bill & Checkout →</button>
+    </div>` : `
+    <button class="secondary" style="width:100%; margin-bottom:14px;" onclick="openStartBillModal()">🧾 Start New Bill (Multiple Items)</button>`;
+}
+function refreshBillBar(){
+  const el = document.getElementById('billBarWrap');
+  if(el) el.innerHTML = billBarHtml();
+}
+function refreshSaleView(){
+  refreshBillBar();
   if(saleMode==='item') renderItemSale();
   else renderServiceForm();
 }
@@ -2648,20 +2673,7 @@ let salePartTypeFilter = 'all';
 let saleSubTypeFilter = 'all';
 function renderItemSale(){
   const cats = ['all', ...categories.filter(c=>c!=='Model Compatibility')];
-  const billBarHtml = billActive ? `
-    <div class="card" style="border:1.5px solid var(--accent); margin-bottom:14px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-weight:700; font-size:14px;">🧾 Bill — ${billCustomer.name || 'Walk-in Customer'}</div>
-          <div style="color:var(--muted); font-size:12.5px; margin-top:2px;">${billCart.length} item${billCart.length===1?'':'s'} · ${fmtMoney(billCart.reduce((s,c)=>s+c.unitSell*c.qty,0))}</div>
-        </div>
-        <button class="secondary" style="padding:6px 10px; font-size:12px;" onclick="cancelBill()">✕ Cancel</button>
-      </div>
-      <button class="primary" style="width:100%; margin-top:10px;" onclick="openBillCheckoutModal()" ${billCart.length===0?'disabled':''}>View Bill & Checkout →</button>
-    </div>` : `
-    <button class="secondary" style="width:100%; margin-bottom:14px;" onclick="openStartBillModal()">🧾 Start New Bill (Multiple Items)</button>`;
   let html = `
-    ${billBarHtml}
     <div class="search-wrap">
       <input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${saleItemSearch}" oninput="setSaleSearch(this.value)">
       <button type="button" class="mic-btn" id="saleMicBtn" onclick="startVoiceSearch('sale')" title="Search by voice">
@@ -2750,14 +2762,14 @@ function confirmStartBill(){
   billActive = true;
   billCart = [];
   document.querySelector('.modal-overlay').remove();
-  renderItemSale();
+  refreshSaleView();
 }
 function cancelBill(){
   if(billCart.length>0 && !confirm('Cancel this bill? Items added so far will be discarded — nothing will be saved.')) return;
   billActive = false;
   billCart = [];
   billCustomer = { name:'', phone:'' };
-  renderItemSale();
+  refreshSaleView();
 }
 function openAddToBillModal(id){
   const it = items.find(i=>i.id===id);
@@ -2796,14 +2808,14 @@ function confirmAddToBill(id){
   const overlay = document.querySelector('.modal-overlay');
   const qty = parseInt(overlay.dataset.qty);
   const unitSell = parseFloat(document.getElementById('billPriceInput').value)||0;
-  billCart.push({ itemId: it.id, name: it.name, qty, unitCost: it.cost, unitSell, category: it.category });
+  billCart.push({ itemId: it.id, name: it.name, qty, unitCost: it.cost, unitSell, category: it.category, isService: false });
   overlay.remove();
   showToast(`${it.name} added to bill ✓`);
-  renderItemSale();
+  refreshSaleView();
 }
 function removeBillCartLine(idx){
   billCart.splice(idx,1);
-  if(billCart.length===0){ document.querySelector('.modal-overlay')?.remove(); renderItemSale(); return; }
+  if(billCart.length===0){ document.querySelector('.modal-overlay')?.remove(); refreshSaleView(); return; }
   openBillCheckoutModal();
 }
 function openBillCheckoutModal(){
@@ -2818,7 +2830,7 @@ function openBillCheckoutModal(){
         ${billCart.map((c,idx)=>`
           <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border);">
             <div class="item-info">
-              <div class="item-name">${c.name}</div>
+              <div class="item-name">${c.name}${c.isService?' <span class="badge ok" style="padding:1px 6px; font-size:9.5px;">Service</span>':''}</div>
               <div class="item-cat">${c.qty} × ${fmtMoney(c.unitSell)} = ${fmtMoney(c.qty*c.unitSell)}</div>
             </div>
             <button class="danger-text" style="padding:4px 8px;" onclick="removeBillCartLine(${idx})">✕</button>
@@ -2925,7 +2937,7 @@ async function checkoutBill(action){
       totalSell, totalProfit, time: timeStr,
       category: c.category, customerName: customerName||null, customerId,
       paymentMethod, cashReceived: Math.round(cashReceived*share), creditAmount: Math.round(creditAmount*share),
-      invoiceNumber
+      invoiceNumber, isService: c.isService||false, serviceSubType: c.serviceSubType||null
     });
   }
 
@@ -3005,12 +3017,15 @@ function renderServiceForm(){
       <label>Quantity</label>
       <input id="svc_qty" type="number" inputmode="numeric" value="1" oninput="updateServiceProfitPreview()">
       <div style="text-align:center; margin-bottom:16px; font-family:'JetBrains Mono'; color:var(--green)">Profit: <span id="svcProfitPreview">Rs 0</span></div>
-      <label>Customer Name (optional)</label>
-      <input id="svc_customer_name" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('svc_customer_name','svc_customer_phone')">
-      <label>Customer Phone Number (optional)</label>
-      <input id="svc_customer_phone" placeholder="e.g. 0300-1234567">
-      ${contactPickBtn('svc_customer_name','svc_customer_phone')}
-      <button class="primary" onclick="submitService()">Add Karein</button>
+      <div id="svcCustomerFieldsWrap" style="${billActive?'display:none':''}">
+        <label>Customer Name (optional)</label>
+        <input id="svc_customer_name" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('svc_customer_name','svc_customer_phone')">
+        <label>Customer Phone Number (optional)</label>
+        <input id="svc_customer_phone" placeholder="e.g. 0300-1234567">
+        ${contactPickBtn('svc_customer_name','svc_customer_phone')}
+      </div>
+      ${billActive ? `<p style="color:var(--muted); font-size:12.5px; margin:-6px 0 14px;">This will be added as a line item to the bill for <b>${billCustomer.name || 'Walk-in Customer'}</b>.</p>` : ''}
+      <button class="primary" onclick="${billActive?'addServiceToBillCart()':'submitService()'}">${billActive?'➕ Add to Bill':'Add Karein'}</button>
       <p style="color:var(--muted); font-size:12px; margin-top:12px; line-height:1.6;">
         If it's only a labour charge, leave Part Cost blank — the full amount counts as profit. If you bought a part, enter its cost and the profit will be calculated automatically.
       </p>
@@ -3018,6 +3033,32 @@ function renderServiceForm(){
   `;
   toggleServiceFields();
   refreshCustomerDatalist();
+}
+function addServiceToBillCart(){
+  const type = document.getElementById('svc_type').value;
+  const customName = document.getElementById('svc_custom_name') ? document.getElementById('svc_custom_name').value.trim() : '';
+  const subtypeSel = document.getElementById('svc_subtype');
+  let subType = subtypeSel ? subtypeSel.value : '';
+  if(subType==='__add_new__' || subType==='') subType = '';
+  const partName = document.getElementById('svc_part_name') ? document.getElementById('svc_part_name').value.trim() : '';
+  const partCost = document.getElementById('svc_part_cost') ? (parseFloat(document.getElementById('svc_part_cost').value)||0) : 0;
+  const amount = parseFloat(document.getElementById('svc_amount').value)||0;
+  const qty = parseInt(document.getElementById('svc_qty').value)||1;
+  if(amount<=0){ showToast('Charge amount is required'); return; }
+
+  let name = (type==='Other Service' && customName) ? customName : type;
+  if(subType) name = subType;
+  if(partName) name = partName + ' (' + (subType || type) + ')';
+
+  billCart.push({ itemId: null, name, qty, unitCost: partCost, unitSell: amount, category: type, isService: true, serviceSubType: subType||null });
+  showToast(`${name} added to bill ✓`);
+
+  document.getElementById('svc_amount').value='';
+  document.getElementById('svc_qty').value=1;
+  if(document.getElementById('svc_part_name')) document.getElementById('svc_part_name').value='';
+  if(document.getElementById('svc_part_cost')) document.getElementById('svc_part_cost').value='';
+  updateServiceProfitPreview();
+  refreshBillBar();
 }
 function toggleServiceFields(){
   const type = document.getElementById('svc_type').value;
@@ -4666,16 +4707,20 @@ function openSettingsModal(){
 
       <div class="section-title" style="margin-top:22px">Backup &amp; Restore</div>
       <button class="secondary" style="width:100%; margin-bottom:10px" onclick="exportBackup()">⬇ Download Backup</button>
+      <div id="backupFolderStatus" style="color:var(--muted); font-size:12px; margin:-4px 0 10px; line-height:1.6;"></div>
       <button class="secondary" style="width:100%; margin-bottom:10px" onclick="document.getElementById('restoreFileInput').click()">⬆ Restore from Backup File</button>
       <input type="file" id="restoreFileInput" accept="application/json,.json" style="display:none" onchange="handleRestoreFile(event)">
       <p style="color:var(--muted); font-size:12px; line-height:1.6;">
-        Backup saves all your items, sales history, categories and settings into one file. Restoring will replace all current data with what's in the backup file.
+        Backup saves all your items, sales history, categories and settings into one file. Restoring will replace all current data with what's in the backup file.<br><br>
+        <b>Desktop Chrome/Edge:</b> pehli baar folder poochega, phir wahi yaad rakhega — "Change Backup Folder" se kabhi bhi badal sakte hain.<br>
+        <b>Mobile Chrome:</b> mobile browsers apne security rules ki wajah se kisi bhi website ko folder yaad rakhne ki ijazat nahi dete — file hamesha phone ki Downloads folder mein jayegi. Ek hi jagah fix karne ke liye Chrome ke 3-dot menu → Settings → Downloads mein apni pasand ki folder set kar lein, phir Chrome hamesha wahin save karega.
       </p>
 
       ${buildDriveSettingsHTML()}
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  refreshBackupFolderStatus();
 }
 async function saveShopName(){
   settings.shopName = document.getElementById('f_shopname').value.trim() || 'Shop Manager';
@@ -4757,6 +4802,87 @@ async function runMigrateModelCompat(){
   else if(currentView==='sale') renderSale();
 }
 
+/* ---------------- MANUAL BACKUP — REMEMBERED FOLDER (desktop Chrome/Edge only) ---------------- */
+const FS_ACCESS_SUPPORTED = ('showDirectoryPicker' in window);
+
+function openHandleDB(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open('hassanMultimediaFS', 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore('handles'); };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function saveBackupFolderHandle(handle){
+  try{
+    const db = await openHandleDB();
+    await new Promise((resolve, reject)=>{
+      const tx = db.transaction('handles','readwrite');
+      tx.objectStore('handles').put(handle, 'backupFolder');
+      tx.oncomplete = ()=>resolve();
+      tx.onerror = ()=>reject(tx.error);
+    });
+  }catch(e){ console.error(e); }
+}
+async function getSavedBackupFolderHandle(){
+  try{
+    const db = await openHandleDB();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction('handles','readonly');
+      const req = tx.objectStore('handles').get('backupFolder');
+      req.onsuccess = ()=> resolve(req.result || null);
+      req.onerror = ()=> resolve(null);
+    });
+  }catch(e){ return null; }
+}
+async function clearSavedBackupFolderHandle(){
+  try{
+    const db = await openHandleDB();
+    await new Promise((resolve)=>{
+      const tx = db.transaction('handles','readwrite');
+      tx.objectStore('handles').delete('backupFolder');
+      tx.oncomplete = ()=>resolve();
+      tx.onerror = ()=>resolve();
+    });
+  }catch(e){}
+}
+async function verifyDirPermission(handle){
+  try{
+    const opts = {mode:'readwrite'};
+    let perm = await handle.queryPermission(opts);
+    if(perm==='granted') return true;
+    perm = await handle.requestPermission(opts);
+    return perm==='granted';
+  }catch(e){ return false; }
+}
+async function refreshBackupFolderStatus(){
+  const el = document.getElementById('backupFolderStatus');
+  if(!el) return;
+  if(!FS_ACCESS_SUPPORTED){
+    el.innerHTML = `Is device/browser par folder yaad rakhna support nahi hai — backup file hamesha Downloads mein jayegi.`;
+    return;
+  }
+  const handle = await getSavedBackupFolderHandle();
+  if(handle){
+    el.innerHTML = `📁 Backup folder set: <b>${handle.name}</b> &nbsp;·&nbsp; <span style="color:var(--accent); cursor:pointer; font-weight:600;" onclick="changeBackupFolder()">Change</span>`;
+  }else{
+    el.innerHTML = `Koi folder set nahi — agli baar "Download Backup" dabane par location poochega aur yaad rakh lega.`;
+  }
+}
+async function changeBackupFolder(){
+  if(!FS_ACCESS_SUPPORTED){ showToast('Yeh device/browser folder memory support nahi karta'); return; }
+  try{
+    const dirHandle = await window.showDirectoryPicker();
+    const ok = await verifyDirPermission(dirHandle);
+    if(!ok){ showToast('Folder access allow nahi hua'); return; }
+    await saveBackupFolderHandle(dirHandle);
+    showToast('Backup folder set ✓');
+    refreshBackupFolderStatus();
+  }catch(e){
+    if(e.name!=='AbortError') console.error(e);
+  }
+}
+
 async function buildBackupObject(){
   let salesData = {};
   try{
@@ -4775,11 +4901,41 @@ async function buildBackupObject(){
 async function exportBackup(){
   showToast('Preparing backup...');
   const backup = await buildBackupObject();
-  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+  const json = JSON.stringify(backup, null, 2);
+  const fileName = 'Hassan Multimedia - Backup - '+todayStr()+'.json';
+
+  if(FS_ACCESS_SUPPORTED){
+    try{
+      let dirHandle = await getSavedBackupFolderHandle();
+      let hasPermission = dirHandle ? await verifyDirPermission(dirHandle) : false;
+      if(!dirHandle || !hasPermission){
+        // No remembered folder (or permission lost) — ask once, then remember it
+        dirHandle = await window.showDirectoryPicker();
+        hasPermission = await verifyDirPermission(dirHandle);
+        if(hasPermission) await saveBackupFolderHandle(dirHandle);
+      }
+      if(dirHandle && hasPermission){
+        const fileHandle = await dirHandle.getFileHandle(fileName, {create:true});
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        showToast('Backup saved to '+dirHandle.name+' ✓');
+        if(document.getElementById('backupFolderStatus')) refreshBackupFolderStatus();
+        return;
+      }
+    }catch(e){
+      if(e.name==='AbortError'){ showToast('Backup cancelled'); return; }
+      console.error(e);
+      // fall through to classic download below
+    }
+  }
+
+  // Fallback (mobile browsers / unsupported browsers): normal browser download
+  const blob = new Blob([json], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'Hassan Multimedia - Backup - '+todayStr()+'.json';
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
