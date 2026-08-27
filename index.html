@@ -8,11 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Shop Manager">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
-<link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230B1220'/%3E%3Ccircle cx='50' cy='50' r='30' fill='%23F2A93B'/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <title>Shop Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
@@ -514,7 +510,6 @@ function moveSubTypeOrder(name, dir){
 let reportDate = todayStr();
 let reportPeriod = 'daily';
 let reportMonth = todayStr().slice(0,7);
-let reportWeek = getISOWeekStr(new Date());
 let reportSubTab = 'overview';
 let advanceSort = 'sale';
 
@@ -522,38 +517,20 @@ function todayStr(){
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-// ---- Week helpers: weeks always run Monday -> Sunday (ISO 8601), matching <input type="week"> ----
-function getISOWeekStr(date){
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayNum = d.getDay() || 7; // Sunday -> 7
-  d.setDate(d.getDate() + 4 - dayNum); // move to this week's Thursday
-  const yearStart = new Date(d.getFullYear(), 0, 1);
-  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  return d.getFullYear() + '-W' + String(weekNo).padStart(2, '0');
+// Returns the Monday (as YYYY-MM-DD) of the calendar week (Mon-Sun) that
+// contains the given date string. Used so "weekly" reports always show a
+// fixed Monday-to-Sunday range instead of a rolling 7-day window ending on
+// whatever date the user happened to pick.
+function getWeekStart(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const diffToMonday = day===0 ? 6 : day-1;
+  d.setDate(d.getDate()-diffToMonday);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-function getMondayFromISOWeekStr(weekStr){
-  const [yearPart, weekPart] = weekStr.split('-W');
-  const year = Number(yearPart), week = Number(weekPart);
-  const jan1 = new Date(year, 0, 1);
-  const jan1Day = jan1.getDay() || 7;
-  const week1Monday = new Date(year, 0, 1 + (jan1Day <= 4 ? 1 - jan1Day : 8 - jan1Day));
-  const monday = new Date(week1Monday);
-  monday.setDate(week1Monday.getDate() + (week - 1) * 7);
-  return monday;
-}
-function getWeekDateStrings(weekStr){
-  const monday = getMondayFromISOWeekStr(weekStr);
-  const dates = [];
-  for(let i=0;i<7;i++){
-    const d = new Date(monday);
-    d.setDate(d.getDate()+i);
-    dates.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
-  }
-  return dates;
-}
-function formatWeekLabel(weekStr){
-  const dates = getWeekDateStrings(weekStr);
-  return `${dates[0]} to ${dates[6]} (Mon–Sun)`;
+function fmtDayMon(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  return d.getDate()+' '+d.toLocaleString('en-US',{month:'short'});
 }
 function fmtMoney(n){ return 'Rs '+Number(n).toLocaleString('en-US',{maximumFractionDigits:0}); }
 function highlightModels(models, query){
@@ -3036,6 +3013,7 @@ function setSaleSubFilter(p){ saleSubTypeFilter = p; renderItemSale(); }
 function setSaleSearch(v){ saleItemSearch = v; renderItemSale(); }
 
 function renderServiceForm(){
+  svcPaymentMethod = 'cash';
   document.getElementById('saleModeBody').innerHTML = `
     <div class="card">
       <label>Service Type</label>
@@ -3074,6 +3052,18 @@ function renderServiceForm(){
         <label>Customer Phone Number (optional)</label>
         <input id="svc_customer_phone" placeholder="e.g. 0300-1234567">
         ${contactPickBtn('svc_customer_name','svc_customer_phone')}
+        <label>Payment</label>
+        <div style="display:flex; gap:8px; margin-bottom:14px;">
+          <div id="svcPayCash" class="chip active" style="flex:1; text-align:center; padding:10px; font-size:12.5px;" onclick="setServicePaymentMethod('cash')">💵 Full Cash</div>
+          <div id="svcPayPartial" class="chip" style="flex:1; text-align:center; padding:10px; font-size:12.5px;" onclick="setServicePaymentMethod('partial')">🔀 Partial</div>
+          <div id="svcPayCredit" class="chip" style="flex:1; text-align:center; padding:10px; font-size:12.5px;" onclick="setServicePaymentMethod('credit')">📒 Full Udhaar</div>
+        </div>
+        <div id="svcPartialWrap" style="display:none">
+          <label>Cash Received Now (Rs)</label>
+          <input id="svcPartialCash" type="number" inputmode="decimal" value="0" oninput="updateServicePartialPreview()">
+          <div id="svcPartialPreview" style="color:var(--muted); font-size:12px; margin:-8px 0 14px;"></div>
+        </div>
+        <div id="svcCreditNote" style="display:none; color:var(--muted); font-size:12px; margin:-8px 0 14px;">Customer name is required for Udhaar — the pending amount will be saved to the Credit Ledger.</div>
       </div>
       ${billActive ? `<p style="color:var(--muted); font-size:12.5px; margin:-6px 0 14px;">This will be added as a line item to the bill for <b>${billCustomer.name || 'Walk-in Customer'}</b>.</p>` : ''}
       <button class="primary" onclick="${billActive?'addServiceToBillCart()':'submitService()'}">${billActive?'➕ Add to Bill':'Add Karein'}</button>
@@ -3211,6 +3201,26 @@ function updateServiceProfitPreview(){
   const partCostEl = document.getElementById('svc_part_cost');
   const partCost = partCostEl ? (parseFloat(partCostEl.value)||0) : 0;
   document.getElementById('svcProfitPreview').textContent = fmtMoney((amount-partCost)*qty);
+  if(document.getElementById('svcPartialWrap') && document.getElementById('svcPartialWrap').style.display!=='none') updateServicePartialPreview();
+}
+function setServicePaymentMethod(method){
+  svcPaymentMethod = method;
+  document.getElementById('svcPayCash').classList.toggle('active', method==='cash');
+  document.getElementById('svcPayPartial').classList.toggle('active', method==='partial');
+  document.getElementById('svcPayCredit').classList.toggle('active', method==='credit');
+  document.getElementById('svcCreditNote').style.display = (method==='credit'||method==='partial') ? 'block' : 'none';
+  document.getElementById('svcPartialWrap').style.display = method==='partial' ? 'block' : 'none';
+  if(method==='partial') updateServicePartialPreview();
+}
+function updateServicePartialPreview(){
+  const amount = parseFloat(document.getElementById('svc_amount').value)||0;
+  const qty = parseInt(document.getElementById('svc_qty').value)||1;
+  const total = amount*qty;
+  let cash = parseFloat(document.getElementById('svcPartialCash').value)||0;
+  if(cash<0) cash=0;
+  if(cash>total) cash=total;
+  const remaining = total-cash;
+  document.getElementById('svcPartialPreview').textContent = `Total: ${fmtMoney(total)} · Cash now: ${fmtMoney(cash)} · Udhaar (pending): ${fmtMoney(remaining)}`;
 }
 async function submitService(){
   const type = document.getElementById('svc_type').value;
@@ -3226,6 +3236,25 @@ async function submitService(){
   const customerPhone = document.getElementById('svc_customer_phone') ? document.getElementById('svc_customer_phone').value.trim() : '';
   if(amount<=0){ showToast('Charge amount is required'); return; }
 
+  const totalSell = amount*qty;
+  let cashReceived = totalSell, creditAmount = 0;
+  if(svcPaymentMethod==='credit'){
+    cashReceived = 0; creditAmount = totalSell;
+  } else if(svcPaymentMethod==='partial'){
+    cashReceived = parseFloat(document.getElementById('svcPartialCash').value)||0;
+    if(cashReceived<0) cashReceived = 0;
+    if(cashReceived>totalSell) cashReceived = totalSell;
+    creditAmount = totalSell - cashReceived;
+  }
+  if((svcPaymentMethod==='credit'||svcPaymentMethod==='partial') && !customerName){
+    showToast('Customer name is required for Udhaar');
+    return;
+  }
+  if(svcPaymentMethod==='partial' && creditAmount<=0){
+    showToast('Enter an amount less than the total for Partial, or use Full Cash instead');
+    return;
+  }
+
   let name = (type==='Other Service' && customName) ? customName : type;
   if(subType) name = subType;
   if(partName) name = partName + ' (' + (subType || type) + ')';
@@ -3236,25 +3265,43 @@ async function submitService(){
   const dateToUse = saleDate || todayStr();
   const sales = await loadSales(dateToUse);
   const now = new Date();
+  const saleId = uid();
   sales.push({
-    id: uid(), itemId: null, name,
+    id: saleId, itemId: null, name,
     qty, unitCost: partCost, unitSell: amount,
-    totalSell: amount*qty, totalProfit: (amount-partCost)*qty,
+    totalSell, totalProfit: (amount-partCost)*qty,
     time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
-    isService: true, category: type, serviceSubType: subType||null, customerName: customerName||null, customerId
+    isService: true, category: type, serviceSubType: subType||null, customerName: customerName||null, customerId,
+    paymentMethod: svcPaymentMethod, cashReceived, creditAmount
   });
   await saveSales(dateToUse, sales);
-  showToast(dateToUse===todayStr() ? 'Added ✓' : `Added for ${dateToUse} ✓`);
+
+  if(svcPaymentMethod==='credit' || svcPaymentMethod==='partial'){
+    const desc = svcPaymentMethod==='partial'
+      ? `Service — ${name} × ${qty} (Cash ${fmtMoney(cashReceived)} received, remaining on Udhaar)`
+      : `Service — ${name} × ${qty}`;
+    creditEntries.push({
+      id:uid(), customer:customerName, description:desc,
+      amount: creditAmount, paid:false, date:dateToUse, paidDate:null, payments:[], saleId
+    });
+    await saveCredit();
+  }
+
+  const msg = svcPaymentMethod==='credit' ? 'Added on Udhaar ✓' : (svcPaymentMethod==='partial' ? 'Added — partial Udhaar recorded ✓' : 'Added ✓');
+  showToast(dateToUse===todayStr() ? msg : msg.replace('✓', `for ${dateToUse} ✓`));
   document.getElementById('svc_amount').value='';
   document.getElementById('svc_qty').value=1;
   if(document.getElementById('svc_part_name')) document.getElementById('svc_part_name').value='';
   if(document.getElementById('svc_part_cost')) document.getElementById('svc_part_cost').value='';
   if(document.getElementById('svc_customer_name')) document.getElementById('svc_customer_name').value='';
   if(document.getElementById('svc_customer_phone')) document.getElementById('svc_customer_phone').value='';
+  setServicePaymentMethod('cash');
+  if(document.getElementById('svcPartialCash')) document.getElementById('svcPartialCash').value=0;
   updateServiceProfitPreview();
 }
 
 let saleProfitVisible = false;
+let svcPaymentMethod = 'cash';
 function openSaleModal(id){
   saleProfitVisible = false;
   const it = items.find(i=>i.id===id);
@@ -3449,7 +3496,14 @@ function getSaleCategory(s){
 }
 function getReportDateRange(){
   if(reportPeriod==='weekly'){
-    return getWeekDateStrings(reportWeek);
+    const monday = new Date(getWeekStart(reportDate)+'T00:00:00');
+    const dates = [];
+    for(let i=0;i<=6;i++){
+      const d = new Date(monday);
+      d.setDate(d.getDate()+i);
+      dates.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+    }
+    return dates;
   }
   if(reportPeriod==='monthly'){
     const [y,m] = reportMonth.split('-').map(Number);
@@ -3486,10 +3540,9 @@ function getPrevPeriodDates(){
     return [ymd(d)];
   }
   if(reportPeriod==='weekly'){
-    const monday = getMondayFromISOWeekStr(reportWeek);
-    const prevMonday = new Date(monday); prevMonday.setDate(prevMonday.getDate()-7);
+    const monday = new Date(getWeekStart(reportDate)+'T00:00:00'); monday.setDate(monday.getDate()-7);
     const dates = [];
-    for(let i=0;i<7;i++){ const d=new Date(prevMonday); d.setDate(d.getDate()+i); dates.push(ymd(d)); }
+    for(let i=0;i<=6;i++){ const d=new Date(monday); d.setDate(d.getDate()+i); dates.push(ymd(d)); }
     return dates;
   }
   let [y,m] = reportMonth.split('-').map(Number);
@@ -3620,21 +3673,90 @@ function renderCategoryBreakdown(sales){
   html += '</div>';
   return html;
 }
+let reportSearchQuery = '';
+function setReportSearch(v){ reportSearchQuery = v; renderReport(); }
+function clearReportSearch(){ reportSearchQuery = ''; renderReport(); }
+async function performReportSearch(query){
+  const q = query.trim().toLowerCase();
+  if(!q) return [];
+  const snapshot = await db.collection('sales').get();
+  let matches = [];
+  snapshot.forEach(doc=>{
+    const arr = doc.data().list || [];
+    arr.forEach(s=>{
+      const nameMatch = (s.name||'').toLowerCase().includes(q);
+      const custMatch = (s.customerName||'').toLowerCase().includes(q);
+      if(nameMatch || custMatch) matches.push({...s, _date: doc.id});
+    });
+  });
+  matches.sort((a,b)=> b._date.localeCompare(a._date) || (b.time||'').localeCompare(a.time||''));
+  return matches;
+}
+function reportSearchBarHtml(){
+  return `
+    <div class="card" style="margin-bottom:14px;">
+      <label>🔍 Search Old Sales (by item/service name or customer)</label>
+      <div style="display:flex; gap:8px;">
+        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${reportSearchQuery}" oninput="setReportSearch(this.value)" style="margin-bottom:0; flex:1;">
+        ${reportSearchQuery ? `<button type="button" onclick="clearReportSearch()" style="padding:0 16px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;">✕</button>` : ''}
+      </div>
+    </div>`;
+}
+async function renderReportSearchResults(){
+  const el = document.getElementById('reportSearchResultsBody');
+  if(!el) return;
+  el.innerHTML = `<div class="empty">Searching...</div>`;
+  const matches = await performReportSearch(reportSearchQuery);
+  if(matches.length===0){
+    el.innerHTML = `<div class="empty">No past sale found for "${reportSearchQuery}"</div>`;
+    return;
+  }
+  const totalAmt = matches.reduce((s,m)=>s+m.totalSell,0);
+  el.innerHTML = `
+    <div style="color:var(--muted); font-size:12.5px; margin-bottom:10px;">${matches.length} result(s) found · Total value: ${fmtMoney(totalAmt)}</div>
+    ${matches.map(s=>`
+      <div class="sale-list-item" onclick="openInvoiceModal('${s._date}','${s.id}')" style="cursor:pointer;">
+        <div>
+          <div>${s.name} × ${s.qty} ${s.customerName ? '· '+s.customerName : ''}</div>
+          <div class="t">${s._date} · ${s.time||''}${s.isService?' · Service':''}</div>
+        </div>
+        <div style="text-align:right"><b>${fmtMoney(s.totalSell)}</b></div>
+      </div>
+    `).join('')}`;
+}
 async function renderReport(){
+  const searchBarHtml = reportSearchBarHtml();
+  if(reportSearchQuery.trim()){
+    document.getElementById('view').innerHTML = `
+      ${searchBarHtml}
+      <div id="reportSearchResultsBody"></div>
+    `;
+    const inp = document.getElementById('reportSearchInput');
+    inp.focus();
+    inp.selectionStart = inp.selectionEnd = reportSearchQuery.length;
+    await renderReportSearchResults();
+    return;
+  }
   let pickerHtml = '';
   if(reportPeriod==='daily'){
     pickerHtml = `<label>Select Date</label><input type="date" id="reportDateInput" value="${reportDate}" max="${todayStr()}">`;
   } else if(reportPeriod==='weekly'){
-    pickerHtml = `<label>Select Week</label>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button class="secondary" style="padding:8px 12px; flex-shrink:0;" onclick="shiftReportWeek(-1)">◀</button>
-        <input type="week" id="reportWeekInput" value="${reportWeek}" max="${getISOWeekStr(new Date())}" style="flex:1;">
-        <button class="secondary" style="padding:8px 12px; flex-shrink:0;" onclick="shiftReportWeek(1)" ${reportWeek===getISOWeekStr(new Date())?'disabled':''}>▶</button>
-      </div>`;
+    const wkMonday = getWeekStart(reportDate);
+    const wkSunday = (()=>{ const d=new Date(wkMonday+'T00:00:00'); d.setDate(d.getDate()+6); return ymd(d); })();
+    const nextDisabled = wkSunday >= todayStr() ? 'disabled style="opacity:.4;cursor:not-allowed;"' : '';
+    pickerHtml = `
+      <label>Week (Mon - Sun)</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" id="prevWeekBtn" style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;">◀ Prev</button>
+        <div style="flex:1;text-align:center;font-weight:600;">${fmtDayMon(wkMonday)} - ${fmtDayMon(wkSunday)}</div>
+        <button type="button" id="nextWeekBtn" style="padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;" ${nextDisabled}>Next ▶</button>
+      </div>
+      <input type="date" id="reportDateInput" value="${reportDate}" max="${todayStr()}" style="margin-top:8px;">`;
   } else {
     pickerHtml = `<label>Select Month</label><input type="month" id="reportMonthInput" value="${reportMonth}" max="${todayStr().slice(0,7)}">`;
   }
   document.getElementById('view').innerHTML = `
+    ${searchBarHtml}
     <div class="chips">
       <div class="chip ${reportPeriod==='daily'?'active':''}" onclick="setReportPeriod('daily')">Daily</div>
       <div class="chip ${reportPeriod==='weekly'?'active':''}" onclick="setReportPeriod('weekly')">Weekly</div>
@@ -3647,17 +3769,25 @@ async function renderReport(){
     document.getElementById('reportMonthInput').addEventListener('change', e=>{
       reportMonth = e.target.value; renderReportBody();
     });
-  } else if(reportPeriod==='weekly'){
-    document.getElementById('reportWeekInput').addEventListener('change', e=>{
-      if(e.target.value){ reportWeek = e.target.value; renderReportBody(); }
-    });
   } else {
     document.getElementById('reportDateInput').addEventListener('change', e=>{
-      reportDate = e.target.value;
+      reportDate = reportPeriod==='weekly' ? getWeekStart(e.target.value) : e.target.value;
       if(reportPeriod==='daily') subscribeToSalesDate(reportDate);
-      renderReportBody();
+      renderReport();
     });
     if(reportPeriod==='daily') subscribeToSalesDate(reportDate);
+    if(reportPeriod==='weekly'){
+      document.getElementById('prevWeekBtn').addEventListener('click', ()=>{
+        const d = new Date(getWeekStart(reportDate)+'T00:00:00'); d.setDate(d.getDate()-7);
+        reportDate = ymd(d); renderReport();
+      });
+      document.getElementById('nextWeekBtn').addEventListener('click', ()=>{
+        const d = new Date(getWeekStart(reportDate)+'T00:00:00'); d.setDate(d.getDate()+7);
+        const candidate = ymd(d);
+        if(getWeekStart(candidate) > getWeekStart(todayStr())) return; // don't go into a future week
+        reportDate = candidate; renderReport();
+      });
+    }
   }
   await renderReportBody();
 }
@@ -3665,15 +3795,6 @@ let advanceCategory = null;
 let advancePartType = null;
 let advanceSubPartType = null;
 function setReportPeriod(p){ reportPeriod = p; renderReport(); }
-function shiftReportWeek(dir){
-  const monday = getMondayFromISOWeekStr(reportWeek);
-  monday.setDate(monday.getDate() + dir*7);
-  const newWeek = getISOWeekStr(monday);
-  const curWeek = getISOWeekStr(new Date());
-  if(newWeek > curWeek) return; // don't allow navigating into the future
-  reportWeek = newWeek;
-  renderReport();
-}
 function setReportSubTab(t){ reportSubTab = t; if(t==='advance'){ advanceCategory=null; advancePartType=null; advanceSubPartType=null; } renderReportBody(); }
 function setAdvanceSort(s){ advanceSort = s; renderReportBody(); }
 function drillAdvance(level, name){
@@ -3786,7 +3907,7 @@ async function renderReportBody(){
   const sales = await fetchReportSales();
   const totalSale = sales.reduce((s,x)=>s+x.totalSell,0);
   const totalProfit = sales.reduce((s,x)=>s+x.totalProfit,0);
-  const periodLabel = reportPeriod==='daily' ? reportDate : (reportPeriod==='weekly' ? formatWeekLabel(reportWeek) : reportMonth);
+  const periodLabel = reportPeriod==='daily' ? reportDate : (reportPeriod==='weekly' ? (()=>{ const mon=getWeekStart(reportDate); const sun=(()=>{const d=new Date(mon+'T00:00:00'); d.setDate(d.getDate()+6); return ymd(d);})(); return `${mon} to ${sun}`; })() : reportMonth);
 
   const subTabsHtml = `
     <div class="chips" style="margin-bottom:10px;">
@@ -4266,23 +4387,20 @@ let expenseFilter = 'all';
 let expensePeriod = 'all';
 let expenseReportDate = todayStr();
 let expenseReportMonth = todayStr().slice(0,7);
-let expenseReportWeek = getISOWeekStr(new Date());
 const EXPENSE_CATEGORIES = ['Daily Expense','Shop Expense'];
 function getExpenseDateRange(){
   if(expensePeriod==='weekly'){
-    return getWeekDateStrings(expenseReportWeek);
+    const end = new Date(expenseReportDate+'T00:00:00');
+    const dates = [];
+    for(let i=6;i>=0;i--){
+      const d = new Date(end);
+      d.setDate(d.getDate()-i);
+      dates.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+    }
+    return dates;
   }
   if(expensePeriod==='daily') return [expenseReportDate];
   return null;
-}
-function shiftExpenseReportWeek(dir){
-  const monday = getMondayFromISOWeekStr(expenseReportWeek);
-  monday.setDate(monday.getDate() + dir*7);
-  const newWeek = getISOWeekStr(monday);
-  const curWeek = getISOWeekStr(new Date());
-  if(newWeek > curWeek) return;
-  expenseReportWeek = newWeek;
-  renderExpense();
 }
 async function renderExpense(){
   let list = expenseEntries;
@@ -4297,17 +4415,11 @@ async function renderExpense(){
   const totalFiltered = list.reduce((s,e)=>s+e.amount,0);
 
   const catLabel = expenseFilter!=='all' ? ` — ${expenseFilter}` : '';
-  const periodLabel = expensePeriod==='daily' ? ` (${expenseReportDate})` : expensePeriod==='weekly' ? ` (${formatWeekLabel(expenseReportWeek)})` : expensePeriod==='monthly' ? ` (${expenseReportMonth})` : '';
+  const periodLabel = expensePeriod==='daily' ? ` (${expenseReportDate})` : expensePeriod==='weekly' ? ` (week ending ${expenseReportDate})` : expensePeriod==='monthly' ? ` (${expenseReportMonth})` : '';
 
   let pickerHtml = '';
-  if(expensePeriod==='daily'){
+  if(expensePeriod==='daily' || expensePeriod==='weekly'){
     pickerHtml = `<input type="date" id="expenseDateInput" value="${expenseReportDate}" max="${todayStr()}">`;
-  } else if(expensePeriod==='weekly'){
-    pickerHtml = `<div style="display:flex; align-items:center; gap:8px;">
-        <button class="secondary" style="padding:8px 12px; flex-shrink:0;" onclick="shiftExpenseReportWeek(-1)">◀</button>
-        <input type="week" id="expenseWeekInput" value="${expenseReportWeek}" max="${getISOWeekStr(new Date())}" style="flex:1;">
-        <button class="secondary" style="padding:8px 12px; flex-shrink:0;" onclick="shiftExpenseReportWeek(1)" ${expenseReportWeek===getISOWeekStr(new Date())?'disabled':''}>▶</button>
-      </div>`;
   } else if(expensePeriod==='monthly'){
     pickerHtml = `<input type="month" id="expenseMonthInput" value="${expenseReportMonth}" max="${todayStr().slice(0,7)}">`;
   }
@@ -4340,13 +4452,9 @@ async function renderExpense(){
   `;
   document.getElementById('view').innerHTML = html;
 
-  if(expensePeriod==='daily'){
+  if(expensePeriod==='daily' || expensePeriod==='weekly'){
     document.getElementById('expenseDateInput').addEventListener('change', e=>{
       expenseReportDate = e.target.value; renderExpense();
-    });
-  } else if(expensePeriod==='weekly'){
-    document.getElementById('expenseWeekInput').addEventListener('change', e=>{
-      if(e.target.value){ expenseReportWeek = e.target.value; renderExpense(); }
     });
   } else if(expensePeriod==='monthly'){
     document.getElementById('expenseMonthInput').addEventListener('change', e=>{
@@ -5369,16 +5477,6 @@ document.addEventListener('wheel', e=>{
     await switchView('dashboard');
   }
 })();
-</script>
-<script>
-  // Register service worker for PWA installability (Android/Chrome install prompt)
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch((err) => {
-        console.warn('Service worker registration failed:', err);
-      });
-    });
-  }
 </script>
 </body>
 </html>
