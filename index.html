@@ -1135,12 +1135,20 @@ function buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount){
     : `*Grand Total: ${fmtMoney(grandTotal)}*`;
   return `*${settings.shopName}*\nInvoice #${String(invoiceNumber).padStart(5,'0')}\nDate: ${dateStr}\n\n${rows}\n\n${totalsBlock}\n\nThank you for choosing ${settings.shopName}!`;
 }
-function sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, lineItems, discount){
+function sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, lineItems, discount, preOpenedTab){
   const text = buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount);
   const encoded = encodeURIComponent(text);
   const phone = formatPhoneForWhatsApp(customerMobile);
   const url = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-  window.open(url, '_blank');
+  // If a blank tab was already opened synchronously (right when the user clicked),
+  // just redirect it now — this avoids mobile popup blockers, which silently kill
+  // window.open() calls made after any `await` (i.e. no longer "in direct response"
+  // to the user's tap). Falls back to opening fresh if no pre-opened tab was passed.
+  if(preOpenedTab && !preOpenedTab.closed){
+    preOpenedTab.location.href = url;
+  } else {
+    window.open(url, '_blank');
+  }
   if(!phone) showToast('No customer number — pick a contact on WhatsApp to send to');
 }
 
@@ -1439,9 +1447,17 @@ async function deleteInvoiceRecord(invoiceNumber){
 }
 async function generateInvoice(dateStr, saleId, action){
   action = action || 'print';
+  // For WhatsApp, open a blank tab RIGHT NOW (synchronously, inside the click handler)
+  // before any `await` runs. Mobile browsers only allow window.open() without a
+  // popup-block warning when it happens synchronously within the user's tap; once we
+  // `await` a Firestore call first, the tap's "trusted" window has already closed by
+  // the time we'd call window.open(), so it gets silently blocked. We fill in the
+  // real WhatsApp URL into this pre-opened tab once the invoice data is ready.
+  const preOpenedTab = (action==='whatsapp') ? window.open('', '_blank') : null;
+
   const sales = await loadSales(dateStr);
   const s = sales.find(x=>x.id===saleId);
-  if(!s){ showToast('Sale not found'); return; }
+  if(!s){ showToast('Sale not found'); if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close(); return; }
   const customerName = document.getElementById('inv_customer_name').value.trim();
   const customerMobile = document.getElementById('inv_customer_mobile').value.trim();
 
@@ -1470,9 +1486,10 @@ async function generateInvoice(dateStr, saleId, action){
   if(overlay) overlay.remove();
 
   if(action==='whatsapp'){
-    sendInvoiceViaWhatsApp(s.invoiceNumber, dateStr, s.customerMobile, originalLineItems, discount);
+    sendInvoiceViaWhatsApp(s.invoiceNumber, dateStr, s.customerMobile, originalLineItems, discount, preOpenedTab);
     return;
   }
+  if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close(); // not needed for print/shareimage
   if(action==='shareimage'){
     shareInvoiceAsImage(s.invoiceNumber, dateStr, s.customerName, s.customerMobile, originalLineItems, discount);
     return;
@@ -1503,10 +1520,13 @@ function openMultiInvoiceModal(){
 }
 async function generateMultiInvoice(action){
   action = action || 'print';
+  // See comment in generateInvoice() — open the tab now, before any await, so mobile
+  // popup blockers don't silently kill it.
+  const preOpenedTab = (action==='whatsapp') ? window.open('', '_blank') : null;
   const dateStr = todayStr();
   const sales = await loadSales(dateStr);
   const selected = sales.filter(s=>selectedSaleIds.has(s.id));
-  if(selected.length===0){ showToast('Selected items not found'); return; }
+  if(selected.length===0){ showToast('Selected items not found'); if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close(); return; }
   const customerName = document.getElementById('inv_customer_name').value.trim();
   const customerMobile = document.getElementById('inv_customer_mobile').value.trim();
   const discount = parseFloat(document.getElementById('inv_discount')?.value)||0;
@@ -1537,10 +1557,12 @@ async function generateMultiInvoice(action){
   if(overlay) overlay.remove();
 
   if(action==='whatsapp'){
-    sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, originalLineItems, discount);
+    sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, originalLineItems, discount, preOpenedTab);
   } else if(action==='shareimage'){
+    if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close();
     shareInvoiceAsImage(invoiceNumber, dateStr, customerName, customerMobile, originalLineItems, discount);
   } else {
+    if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close();
     document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, originalLineItems, discount);
     setTimeout(()=>window.print(), 100);
   }
@@ -1700,6 +1722,9 @@ function openReportMultiInvoiceModal(){
 }
 async function generateReportMultiInvoice(action){
   action = action || 'print';
+  // See comment in generateInvoice() — open the tab now, before any await, so mobile
+  // popup blockers don't silently kill it.
+  const preOpenedTab = (action==='whatsapp') ? window.open('', '_blank') : null;
   const customerName = document.getElementById('inv_customer_name').value.trim();
   const customerMobile = document.getElementById('inv_customer_mobile').value.trim();
   const discount = parseFloat(document.getElementById('inv_discount')?.value)||0;
@@ -1754,10 +1779,12 @@ async function generateReportMultiInvoice(action){
   if(overlay) overlay.remove();
 
   if(action==='whatsapp'){
-    sendInvoiceViaWhatsApp(invoiceNumber, displayDate, customerMobile, originalLineItems, discount);
+    sendInvoiceViaWhatsApp(invoiceNumber, displayDate, customerMobile, originalLineItems, discount, preOpenedTab);
   } else if(action==='shareimage'){
+    if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close();
     shareInvoiceAsImage(invoiceNumber, displayDate, customerName, customerMobile, originalLineItems, discount);
   } else {
+    if(preOpenedTab && !preOpenedTab.closed) preOpenedTab.close();
     document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(invoiceNumber, displayDate, customerName, customerMobile, originalLineItems, discount);
     setTimeout(()=>window.print(), 100);
   }
