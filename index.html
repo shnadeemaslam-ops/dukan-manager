@@ -2257,7 +2257,12 @@ function openItemModal(id, defaultCategory, defaultPartType, defaultSubType){
       <datalist id="sellerDatalist">
         ${getAllSellerNames().map(n=>`<option value="${n}">`).join('')}
       </datalist>
-      <p style="color:var(--muted); font-size:11.5px; margin:-8px 0 12px; line-height:1.6;">${editing ? 'If you increase the Stock Quantity above, this seller + Cost Price will be logged as a new purchase entry.' : 'Tag who you bought this from — Cost Price above will be logged as the purchase rate.'}</p>
+      <p style="color:var(--muted); font-size:11.5px; margin:-8px 0 12px; line-height:1.6;">Typing a name here adds it to your Sellers list right away. ${editing ? 'If you also increase the Stock Quantity above, that added amount is logged as a new purchase from this seller automatically.' : 'Cost Price above will be logged as the purchase rate.'}</p>
+      ${editing ? `
+      <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal; cursor:pointer; margin:-4px 0 14px;">
+        <input type="checkbox" id="f_seller_tag_existing" style="width:auto; margin-top:3px;">
+        <span style="font-size:12.5px; line-height:1.6;">Tag my current stock (${editing.qty}) as purchased from this seller — use this for stock you already had in inventory, even if quantity isn't changing now.</span>
+      </label>` : ''}
       ${editing ? renderItemPurchaseHistory(editing.id) : ''}
       <label>Compatible Models (if this part fits multiple models, separate with a comma "," or an equals sign "=")</label>
       <input id="f_models" value="${editing&&editing.models?editing.models.join(', '):''}" placeholder="e.g. Infinix Hot 10, Vivo Y20, Vivo Y21">
@@ -2616,6 +2621,7 @@ async function saveItemForm(id){
   const qty = parseInt(document.getElementById('f_qty').value)||0;
   const models = document.getElementById('f_models').value.split(/[,=]/).map(m=>m.trim()).filter(m=>m.length>0);
   const sellerName = document.getElementById('f_seller') ? document.getElementById('f_seller').value.trim() : '';
+  const tagExistingStock = document.getElementById('f_seller_tag_existing') ? document.getElementById('f_seller_tag_existing').checked : false;
   if(!name){ showToast('Item name is required'); return; }
 
   let movedToInventory = false;
@@ -2630,12 +2636,19 @@ async function saveItemForm(id){
       movedToInventory = true;
     }
     Object.assign(it, {name, category:cat, partType, subPartType, cost, sell, qty, models, image: pendingItemImage});
-    // Only log a purchase if stock actually went up (a plain price/name edit isn't a restock)
-    const qtyAdded = qty - originalQty;
-    if(sellerName && qtyAdded>0){
+    if(sellerName){
       if(!it.purchaseHistory) it.purchaseHistory = [];
-      it.purchaseHistory.push({sellerName, rate:cost, qty:qtyAdded, date: todayStr()});
-      purchaseLogged = true;
+      const qtyAdded = qty - originalQty;
+      if(qtyAdded>0){
+        // Genuine restock — log only the newly added quantity as a fresh purchase
+        it.purchaseHistory.push({sellerName, rate:cost, qty:qtyAdded, date: todayStr()});
+        purchaseLogged = true;
+      } else if(tagExistingStock && qty>0){
+        // Retroactively tagging stock that was already sitting in inventory —
+        // logs the full current quantity as having come from this seller.
+        it.purchaseHistory.push({sellerName, rate:cost, qty:qty, date: todayStr()});
+        purchaseLogged = true;
+      }
     }
     savedItem = it;
   } else {
@@ -2646,7 +2659,9 @@ async function saveItemForm(id){
     }
     items.push(savedItem);
   }
-  if(purchaseLogged && sellerName && !suppliers.find(s=>s.name.toLowerCase()===sellerName.toLowerCase())){
+  // Add the seller to the Sellers list the moment a name is typed and saved —
+  // independent of whether a purchase entry was logged this time.
+  if(sellerName && !suppliers.find(s=>s.name.toLowerCase()===sellerName.toLowerCase())){
     suppliers.push({id:uid(), name:sellerName, phone:'', address:'', createdDate: todayStr()});
     await saveSuppliers();
   }
