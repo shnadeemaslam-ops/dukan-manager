@@ -2041,6 +2041,8 @@ async function renderInventory(){
     const badgeText = i.qty===0?'Out':i.qty+' pcs';
     const modelsHtml = (i.models&&i.models.length>0) ? `<div class="item-cat" style="margin-top:4px">Fits: ${highlightModels(i.models, q)}</div>` : '';
     const catLabel = [i.category, i.partType, i.subPartType].filter(Boolean).join(' · ');
+    const latestSeller = getLatestSellerForItem(i);
+    const sellerHtml = latestSeller ? `<div class="item-cat" style="margin-top:2px; color:var(--muted);">Seller: ${latestSeller}</div>` : '';
     const thumbHtml = i.image ? `<img src="${i.image}" style="width:52px; height:52px; object-fit:cover; border-radius:8px; border:1px solid var(--border); flex-shrink:0;" onclick="openImageViewer('${i.image.replace(/'/g,"\\'")}')">` : '';
     return `<div class="card">
       <div class="item-row">
@@ -2048,6 +2050,7 @@ async function renderInventory(){
         <div class="item-info">
           <div class="item-name">${i.name}</div>
           <div class="item-cat">${catLabel}</div>
+          ${sellerHtml}
           <div class="item-prices">Cost: <b class="cost-val" data-amt="${i.cost}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(i.cost):'••••'}</b> · Sell: <b>${fmtMoney(i.sell)}</b></div>
           ${modelsHtml}
         </div>
@@ -4165,6 +4168,13 @@ function getAllSellerNames(){
     (it.purchaseHistory||[]).forEach(h=> names.add(h.sellerName));
   });
   return Array.from(names).filter(Boolean).sort();
+}
+// Most recent seller this item was purchased from — shown right under category on
+// the Inventory card so it's visible at a glance without opening Edit.
+function getLatestSellerForItem(item){
+  if(!item.purchaseHistory || item.purchaseHistory.length===0) return null;
+  const sorted = item.purchaseHistory.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  return sorted[0].sellerName || null;
 }
 
 async function renderPurchases(){
