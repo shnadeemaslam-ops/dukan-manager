@@ -819,6 +819,19 @@ async function saveRepairJobs(){
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
 
+/* ---------------- SELLERS (used to tag item purchases) ---------------- */
+let suppliers = [];
+async function loadSuppliers(){
+  try{
+    const doc = await db.collection('shop').doc('suppliers').get();
+    suppliers = doc.exists && doc.data().list ? doc.data().list : [];
+  }catch(e){ suppliers = []; console.error(e); }
+}
+async function saveSuppliers(){
+  try{ await db.collection('shop').doc('suppliers').set({list: suppliers}); scheduleAutoBackup(); }
+  catch(e){ showToast('Cloud save failed — check internet connection'); }
+}
+
 /* ---------------- REAL-TIME SYNC ---------------- */
 let unsubSalesListener = null;
 function startRealtimeSync(){
@@ -884,6 +897,13 @@ function startRealtimeSync(){
     }
   }, e=>console.error(e));
 
+  db.collection('shop').doc('suppliers').onSnapshot(doc=>{
+    if(doc.exists && doc.data().list){
+      suppliers = doc.data().list;
+      if(currentView==='purchases') refreshCurrentView();
+    }
+  }, e=>console.error(e));
+
   db.collection('shop').doc('settings').onSnapshot(doc=>{
     if(doc.exists && doc.data().value){
       settings = doc.data().value;
@@ -916,6 +936,7 @@ function refreshCurrentView(){
   else if(currentView==='modelCompat') renderModelCompat();
   else if(currentView==='more') renderMore();
   else if(currentView==='invoices') renderInvoiceList();
+  else if(currentView==='purchases') renderPurchases();
 }
 
 function showToast(msg){
@@ -1637,7 +1658,7 @@ async function switchView(v){
     v = 'inventory';
   }
   currentView = v;
-  const navKey = (v==='credit'||v==='shopping'||v==='expense'||v==='customers'||v==='customerDetail'||v==='repairJobs'||v==='modelCompat'||v==='invoices') ? 'more' : v;
+  const navKey = (v==='credit'||v==='shopping'||v==='expense'||v==='customers'||v==='customerDetail'||v==='repairJobs'||v==='modelCompat'||v==='invoices'||v==='purchases') ? 'more' : v;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===navKey));
   document.getElementById('fabBtn').style.display = (v==='dashboard' && userRole!=='staff') ? 'flex' : 'none';
   const el = document.getElementById('view');
@@ -1655,6 +1676,7 @@ async function switchView(v){
   else if(v==='repairJobs') await renderRepairJobs();
   else if(v==='modelCompat') await renderModelCompat();
   else if(v==='invoices') await renderInvoices();
+  else if(v==='purchases') await renderPurchases();
 }
 
 /* ---------------- DASHBOARD ---------------- */
@@ -2230,6 +2252,13 @@ function openItemModal(id, defaultCategory, defaultPartType, defaultSubType){
       </div>
       <label>Stock Quantity</label>
       <input id="f_qty" type="number" inputmode="numeric" value="${editing?editing.qty:''}" placeholder="0">
+      <label>Seller / Purchased From (optional)</label>
+      <input id="f_seller" list="sellerDatalist" placeholder="e.g. Karachi Computer">
+      <datalist id="sellerDatalist">
+        ${getAllSellerNames().map(n=>`<option value="${n}">`).join('')}
+      </datalist>
+      <p style="color:var(--muted); font-size:11.5px; margin:-8px 0 12px; line-height:1.6;">${editing ? 'If you increase the Stock Quantity above, this seller + Cost Price will be logged as a new purchase entry.' : 'Tag who you bought this from — Cost Price above will be logged as the purchase rate.'}</p>
+      ${editing ? renderItemPurchaseHistory(editing.id) : ''}
       <label>Compatible Models (if this part fits multiple models, separate with a comma "," or an equals sign "=")</label>
       <input id="f_models" value="${editing&&editing.models?editing.models.join(', '):''}" placeholder="e.g. Infinix Hot 10, Vivo Y20, Vivo Y21">
       <div id="itemImageSection"></div>
@@ -2586,22 +2615,40 @@ async function saveItemForm(id){
   const sell = parseFloat(document.getElementById('f_sell').value)||0;
   const qty = parseInt(document.getElementById('f_qty').value)||0;
   const models = document.getElementById('f_models').value.split(/[,=]/).map(m=>m.trim()).filter(m=>m.length>0);
+  const sellerName = document.getElementById('f_seller') ? document.getElementById('f_seller').value.trim() : '';
   if(!name){ showToast('Item name is required'); return; }
 
   let movedToInventory = false;
   let savedItem;
+  let purchaseLogged = false;
   if(id){
     const it = items.find(i=>i.id===id);
+    const originalQty = it.qty||0;
     const wasModelCompat = it.category === 'Model Compatibility';
     if(wasModelCompat && cat==='Model Compatibility' && qty>0){
       cat = 'Mobile Parts';
       movedToInventory = true;
     }
     Object.assign(it, {name, category:cat, partType, subPartType, cost, sell, qty, models, image: pendingItemImage});
+    // Only log a purchase if stock actually went up (a plain price/name edit isn't a restock)
+    const qtyAdded = qty - originalQty;
+    if(sellerName && qtyAdded>0){
+      if(!it.purchaseHistory) it.purchaseHistory = [];
+      it.purchaseHistory.push({sellerName, rate:cost, qty:qtyAdded, date: todayStr()});
+      purchaseLogged = true;
+    }
     savedItem = it;
   } else {
-    savedItem = {id:uid(), name, category:cat, partType, subPartType, cost, sell, qty, models, image: pendingItemImage};
+    savedItem = {id:uid(), name, category:cat, partType, subPartType, cost, sell, qty, models, image: pendingItemImage, purchaseHistory: []};
+    if(sellerName && qty>0){
+      savedItem.purchaseHistory.push({sellerName, rate:cost, qty, date: todayStr()});
+      purchaseLogged = true;
+    }
     items.push(savedItem);
+  }
+  if(purchaseLogged && sellerName && !suppliers.find(s=>s.name.toLowerCase()===sellerName.toLowerCase())){
+    suppliers.push({id:uid(), name:sellerName, phone:'', address:'', createdDate: todayStr()});
+    await saveSuppliers();
   }
   await saveItem(savedItem);
   pendingItemImage = null;
@@ -2611,7 +2658,7 @@ async function saveItemForm(id){
     if(currentView==='modelCompat' || currentView==='dashboard') switchView('inventory');
     else refreshCurrentView();
   } else {
-    showToast(id ? 'Item updated' : 'Item added');
+    showToast(purchaseLogged ? 'Item saved — purchase logged ✓' : (id ? 'Item updated' : 'Item added'));
     refreshCurrentView();
   }
 }
@@ -4013,12 +4060,22 @@ async function renderMore(){
   const totalDue = pendingCredit.reduce((s,c)=>s+c.amount,0);
   const pendingShopping = shoppingList.filter(s=>!s.bought);
   const totalExpenses = expenseEntries.reduce((s,e)=>s+e.amount,0);
+  const sellerCount = getAllSellerNames().length;
   document.getElementById('view').innerHTML = `
     <div class="card" style="cursor:pointer" onclick="switchView('invoices')">
       <div class="item-row">
         <div class="item-info">
           <div class="item-name">Invoices</div>
           <div class="item-cat">Search &amp; manage all bills sent to customers</div>
+        </div>
+        <span style="font-size:22px; color:var(--muted)">›</span>
+      </div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="switchView('purchases')">
+      <div class="item-row">
+        <div class="item-info">
+          <div class="item-name">Sellers (Kharedari Record)</div>
+          <div class="item-cat">${sellerCount} seller${sellerCount===1?'':'s'} tracked</div>
         </div>
         <span style="font-size:22px; color:var(--muted)">›</span>
       </div>
@@ -4080,6 +4137,110 @@ async function renderMore(){
   `;
 }
 
+/* ---------------- SELLER-WISE PURCHASE RECORD ---------------- */
+// Simple, non-transactional record: every time stock is added to an item, we log
+// {sellerName, rate, qty, date} onto that item's own purchaseHistory array. This lets
+// us build a per-seller report (what was bought, at what rate, total spent) and also
+// compare rates for the same item across different sellers — without any invoice or
+// payable/payment tracking overhead.
+
+function getAllSellerNames(){
+  const names = new Set(suppliers.map(s=>s.name));
+  items.forEach(it=>{
+    (it.purchaseHistory||[]).forEach(h=> names.add(h.sellerName));
+  });
+  return Array.from(names).filter(Boolean).sort();
+}
+
+async function renderPurchases(){
+  const sellerNames = getAllSellerNames();
+  const totals = sellerNames.map(name=>{
+    let total = 0, count = 0;
+    items.forEach(it=>{
+      (it.purchaseHistory||[]).forEach(h=>{
+        if(h.sellerName===name){ total += h.rate*h.qty; count++; }
+      });
+    });
+    return {name, total, count};
+  }).sort((a,b)=> b.total - a.total);
+
+  let html = `
+    <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
+    <div class="section-title">Sellers (Kahan Se Khareeda)</div>
+  `;
+  if(totals.length===0){
+    html += `<div class="empty">No purchase records yet. Add stock to any inventory item and tag a seller to start tracking.</div>`;
+  } else {
+    html += totals.map(t=>`
+      <div class="card" style="cursor:pointer" onclick="openSellerDetail('${encodeURIComponent(t.name)}')">
+        <div class="item-row">
+          <div class="item-info">
+            <div class="item-name">${t.name}</div>
+            <div class="item-cat">${t.count} purchase entr${t.count===1?'y':'ies'}</div>
+          </div>
+          <span class="badge low cost-val" data-amt="${t.total}" style="cursor:pointer">${pricesVisible?fmtMoney(t.total):'••••'}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+  html += `<button class="primary" style="margin-top:14px" onclick="openSupplierManageModal()">👤 Manage Sellers</button>`;
+  document.getElementById('view').innerHTML = html;
+}
+
+function openSellerDetail(encodedName){
+  const name = decodeURIComponent(encodedName);
+  const rows = [];
+  items.forEach(it=>{
+    (it.purchaseHistory||[]).forEach(h=>{
+      if(h.sellerName===name) rows.push({itemName: it.name, ...h});
+    });
+  });
+  rows.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  const total = rows.reduce((s,r)=>s+(r.rate*r.qty),0);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>${name}</h3>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">Total purchased: <b style="color:var(--text)">${fmtMoney(total)}</b></p>
+      <div style="max-height:360px; overflow-y:auto;">
+        ${rows.length===0 ? '<div class="empty">No entries.</div>' : rows.map(r=>`
+          <div class="item-row" style="padding:10px 0; border-bottom:1px solid var(--border,#2a2a2a);">
+            <div class="item-info">
+              <div class="item-name" style="font-size:13.5px;">${r.itemName}</div>
+              <div class="item-cat">${r.qty} x ${fmtMoney(r.rate)} = ${fmtMoney(r.qty*r.rate)}</div>
+              <div class="item-prices">${r.date}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+}
+
+// Rate comparison for one item across all sellers who have supplied it — surfaced from
+// the item's edit modal so "is item ko konsa seller sasta de raha hai" is one tap away.
+function renderItemPurchaseHistory(itemId){
+  const it = items.find(i=>i.id===itemId);
+  if(!it || !it.purchaseHistory || it.purchaseHistory.length===0){
+    return `<div style="color:var(--muted); font-size:12.5px; margin:10px 0;">No purchase history yet for this item.</div>`;
+  }
+  const rows = it.purchaseHistory.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  return `
+    <div class="section-title" style="margin-top:14px;">Purchase History (by Seller)</div>
+    ${rows.map(r=>`
+      <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--border,#2a2a2a);">
+        <span>${r.sellerName}</span>
+        <span>${r.qty} x ${fmtMoney(r.rate)} <span style="color:var(--muted)">(${r.date})</span></span>
+      </div>
+    `).join('')}
+  `;
+}
+
+/* ---------- Seller management (simple name/phone/address list, used as a
+   dropdown + datalist when tagging purchases — no payment/ledger tracking) ---------- */
 let creditFilter = 'pending';
 function getCreditPaidAmount(c){
   if(c.payments && c.payments.length) return c.payments.reduce((s,p)=>s+p.amount,0);
@@ -5446,7 +5607,7 @@ document.addEventListener('wheel', e=>{
     document.getElementById('view').innerHTML = `<div class="empty" style="padding:40px 20px; line-height:1.7;">Could not connect to the cloud database.<br>Please check your internet connection and reopen the app.</div>`;
     return;
   }
-  const loadResults = await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs()]);
+  const loadResults = await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs(), loadSuppliers()]);
   const partTypesLoadStatus = loadResults[2];
   const categoriesLoadStatus = loadResults[8];
   subscribeToInvoices();
