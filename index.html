@@ -1657,6 +1657,9 @@ async function switchView(v){
   if(userRole==='staff' && !STAFF_ALLOWED_VIEWS.includes(v)){
     v = 'inventory';
   }
+  // Profit is sensitive — re-hide it every time the page is switched, so it only stays
+  // visible for the current view and must be tapped again after navigating away.
+  profitVisible = false;
   currentView = v;
   const navKey = (v==='credit'||v==='shopping'||v==='expense'||v==='customers'||v==='customerDetail'||v==='repairJobs'||v==='modelCompat'||v==='invoices'||v==='purchases') ? 'more' : v;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===navKey));
