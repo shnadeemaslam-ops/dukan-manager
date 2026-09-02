@@ -1940,7 +1940,9 @@ function renderDashSearchResults(){
       const modelsHtml = (i.models&&i.models.length>0) ? `<div class="item-cat" style="margin-top:2px">Fits: ${highlightModels(i.models, q)}</div>` : '';
       return `<div style="padding:8px 0; border-bottom:1px solid var(--border)">
         <div class="item-row">
-          <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${catLabel}</div>${modelsHtml}</div>
+          <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${catLabel}</div>${modelsHtml}
+            <div class="item-prices">Sale Price: <b>${fmtMoney(i.sell)}</b></div>
+          </div>
           <span class="badge ${badgeClass}">${badgeText}</span>
         </div>
         <button class="secondary" style="width:100%; margin-top:8px; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
