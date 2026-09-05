@@ -3645,8 +3645,18 @@ function getPrevPeriodDates(){
   let [y,m] = reportMonth.split('-').map(Number);
   m -= 1; if(m===0){ m=12; y-=1; }
   const daysInMonth = new Date(y,m,0).getDate();
+  // Fair comparison: if the report month is still in progress (i.e. it's the current
+  // month), only compare against the SAME number of days from last month — not last
+  // month's full total. e.g. if today is the 5th, compare this month's 5 days against
+  // only the 1st-5th of last month, not the whole of last month.
+  const curMonthStr = todayStr().slice(0,7);
+  let limitDays = daysInMonth;
+  if(reportMonth === curMonthStr){
+    const elapsedDays = parseInt(todayStr().slice(8,10),10);
+    limitDays = Math.min(daysInMonth, elapsedDays);
+  }
   const dates = [];
-  for(let d=1; d<=daysInMonth; d++) dates.push(y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
+  for(let d=1; d<=limitDays; d++) dates.push(y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
   return dates;
 }
 async function fetchTotalsForDates(dates){
@@ -3738,6 +3748,17 @@ async function renderTrendSection(sales, totalSale, totalProfit){
   const saleChange = pctChangeText(totalSale, prevTotals.sale);
   const profitChange = pctChangeText(totalProfit, prevTotals.profit);
   const avgLabelSuffix = reportPeriod==='daily' ? ' (Last 7 Days)' : '';
+  // When the current month is still in progress, make it explicit that the "vs
+  // Previous Month" row is comparing the same number of days on both sides —
+  // otherwise "5 days vs whole last month" reads as a full-month comparison.
+  let compareSuffix = '';
+  if(reportPeriod==='monthly'){
+    const curMonthStr = todayStr().slice(0,7);
+    if(reportMonth === curMonthStr){
+      const elapsedDays = parseInt(todayStr().slice(8,10),10);
+      compareSuffix = ` (first ${elapsedDays} day${elapsedDays===1?'':'s'} of each)`;
+    }
+  }
   return `
     <div class="section-title">Sales & Profit Trend</div>
     <div class="card" style="padding:14px 8px 10px;">
@@ -3747,8 +3768,8 @@ async function renderTrendSection(sales, totalSale, totalProfit){
       <div class="sale-list-item"><div>Avg Daily Sale${avgLabelSuffix}</div><div class="t" style="font-weight:600; font-family:'JetBrains Mono',monospace;">${fmtMoney(avgSale)}</div></div>
       <div class="sale-list-item"><div>Avg Daily Profit${avgLabelSuffix}</div><div class="t profit-val" data-amt="${avgProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(avgProfit):'••••'}</div></div>
       <div class="sale-list-item"><div>Best Day</div><div class="t" style="font-weight:600;">${bestDay && bestDay.sale>0 ? bestDay.date+' · '+fmtMoney(bestDay.sale) : '—'}</div></div>
-      <div class="sale-list-item"><div>Sale vs Previous ${periodWord}</div><div class="t" style="font-weight:600; color:${saleChange.color};">${saleChange.text}</div></div>
-      <div class="sale-list-item"><div>Profit vs Previous ${periodWord}</div><div class="t" style="font-weight:600; color:${profitChange.color};">${profitChange.text}</div></div>
+      <div class="sale-list-item"><div>Sale vs Previous ${periodWord}${compareSuffix}</div><div class="t" style="font-weight:600; color:${saleChange.color};">${saleChange.text}</div></div>
+      <div class="sale-list-item"><div>Profit vs Previous ${periodWord}${compareSuffix}</div><div class="t" style="font-weight:600; color:${profitChange.color};">${profitChange.text}</div></div>
     </div>`;
 }
 function renderCategoryBreakdown(sales){
