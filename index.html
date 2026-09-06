@@ -1078,8 +1078,9 @@ function openInvoiceModal(dateStr, saleId){
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
-function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount){
+function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount, advance){
   discount = discount || 0;
+  advance = advance || 0;
   const subtotal = lineItems.reduce((s,li)=>s+li.totalSell, 0);
   const grandTotal = subtotal - discount;
   const rows = lineItems.map(li=>`
@@ -1124,10 +1125,19 @@ function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, 
                 <div style="display:flex; justify-content:flex-end; font-size:13px; color:#333;">Subtotal: ${fmtMoney(subtotal)}</div>
                 <div style="display:flex; justify-content:flex-end; font-size:13px; color:#c0392b;">Discount: -${fmtMoney(discount)}</div>
               ` : ''}
+              ${advance>0 ? `
+                <div style="display:flex; justify-content:flex-end; font-size:13px; color:#333;">Total Bill: ${fmtMoney(grandTotal)}</div>
+                <div style="display:flex; justify-content:flex-end; font-size:13px; color:#1a7a3a;">Advance Paid: -${fmtMoney(advance)}</div>
+                <div style="display:flex; justify-content:flex-end;">
+                  <div style="font-size:16px; font-weight:bold; color:#c0392b;">Balance Due: ${fmtMoney(Math.max(0,grandTotal-advance))}</div>
+                </div>
+              ` : `
               <div style="display:flex; justify-content:flex-end;">
                 <div style="font-size:16px; font-weight:bold;">Grand Total: ${fmtMoney(grandTotal)}</div>
               </div>
+              `}
             </div>
+            ${advance>0 ? `<div style="text-align:center; font-size:10.5px; color:#888; margin-top:4px;">Please keep this receipt — bring it (or send someone with it) to collect the item.</div>` : ''}
             <div style="text-align:center; font-size:11px; color:#666; margin-top:8px;">
               Thank you for choosing Hassan Multimedia — All Your Tech Needs, One Trusted Place.
             </div>
@@ -1146,18 +1156,21 @@ function formatPhoneForWhatsApp(phone){
   else if(digits.startsWith('3') && digits.length===10) digits = '92'+digits; // e.g. 3001234567
   return digits;
 }
-function buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount){
+function buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount, advance){
   discount = discount || 0;
+  advance = advance || 0;
   const subtotal = lineItems.reduce((s,li)=>s+li.totalSell, 0);
   const grandTotal = subtotal - discount;
   const rows = lineItems.map(li=>`• ${li.name} x${li.qty} — ${fmtMoney(li.totalSell)}`).join('\n');
-  const totalsBlock = discount>0
-    ? `Subtotal: ${fmtMoney(subtotal)}\nDiscount: -${fmtMoney(discount)}\n*Grand Total: ${fmtMoney(grandTotal)}*`
-    : `*Grand Total: ${fmtMoney(grandTotal)}*`;
+  const totalsBlock = advance>0
+    ? `Total Bill: ${fmtMoney(grandTotal)}\nAdvance Paid: -${fmtMoney(advance)}\n*Balance Due: ${fmtMoney(Math.max(0,grandTotal-advance))}*\n\n_Please keep this receipt — bring it (or send someone with it) to collect the item._`
+    : (discount>0
+      ? `Subtotal: ${fmtMoney(subtotal)}\nDiscount: -${fmtMoney(discount)}\n*Grand Total: ${fmtMoney(grandTotal)}*`
+      : `*Grand Total: ${fmtMoney(grandTotal)}*`);
   return `*${settings.shopName}*\nInvoice #${String(invoiceNumber).padStart(5,'0')}\nDate: ${dateStr}\n\n${rows}\n\n${totalsBlock}\n\nThank you for choosing ${settings.shopName}!`;
 }
-function sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, lineItems, discount, preOpenedTab){
-  const text = buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount);
+function sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, lineItems, discount, preOpenedTab, advance){
+  const text = buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount, advance);
   const encoded = encodeURIComponent(text);
   const phone = formatPhoneForWhatsApp(customerMobile);
   const url = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
@@ -1173,13 +1186,13 @@ function sendInvoiceViaWhatsApp(invoiceNumber, dateStr, customerMobile, lineItem
   if(!phone) showToast('No customer number — pick a contact on WhatsApp to send to');
 }
 
-async function shareInvoiceAsImage(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount){
+async function shareInvoiceAsImage(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount, advance){
   if(typeof html2canvas==='undefined'){ showToast('Image sharing is still loading — try again in a moment'); return; }
   showToast('Preparing invoice image...');
   const invoiceLabel = `Invoice #${String(invoiceNumber).padStart(5,'0')}`;
   let container;
   try{
-    const html = buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount);
+    const html = buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount, advance);
     container = document.createElement('div');
     container.style.cssText = 'position:fixed; left:-9999px; top:0; width:794px; background:#fff;';
     container.innerHTML = html;
@@ -1195,7 +1208,7 @@ async function shareInvoiceAsImage(invoiceNumber, dateStr, customerName, custome
       const file = new File([blob], fileName, { type: 'image/png' });
       if(navigator.canShare && navigator.canShare({ files: [file] })){
         try{
-          const fullText = buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount);
+          const fullText = buildInvoiceWhatsAppText(invoiceNumber, dateStr, lineItems, discount, advance);
           await navigator.share({ files: [file], title: invoiceLabel, text: fullText });
         }catch(e){
           if(e.name!=='AbortError') showToast('Could not open share menu');
@@ -1326,7 +1339,11 @@ function openInvoiceDetailModal(invoiceNumber){
       </div>
       <div style="text-align:right; margin-bottom:14px;">
         ${inv.discount>0 ? `<div style="color:var(--muted); font-size:13px;">Subtotal: ${fmtMoney(inv.subtotal)}</div><div style="color:#c0392b; font-size:13px;">Discount: -${fmtMoney(inv.discount)}</div>` : ''}
-        <div style="font-weight:700; font-size:16px;">Grand Total: ${fmtMoney(inv.grandTotal)}</div>
+        ${inv.advance>0 ? `
+          <div style="color:var(--muted); font-size:13px;">Total Bill: ${fmtMoney(inv.grandTotal)}</div>
+          <div style="color:#1a7a3a; font-size:13px;">Advance Paid: -${fmtMoney(inv.advance)}</div>
+          <div style="font-weight:700; font-size:16px; color:#c0392b;">Balance Due: ${fmtMoney(Math.max(0,inv.grandTotal-inv.advance))}</div>
+        ` : `<div style="font-weight:700; font-size:16px;">Grand Total: ${fmtMoney(inv.grandTotal)}</div>`}
       </div>
       <button class="primary" onclick="printStoredInvoice(${inv.invoiceNumber})">🖨 Print</button>
       <button class="secondary" style="width:100%; margin-top:10px; background:#25D366; color:#fff; border-color:#25D366" onclick="whatsappStoredInvoice(${inv.invoiceNumber})">📲 Send via WhatsApp</button>
@@ -1340,18 +1357,18 @@ function openInvoiceDetailModal(invoiceNumber){
 function printStoredInvoice(invoiceNumber){
   const inv = (invoicesCache||[]).find(i=>i.invoiceNumber===invoiceNumber);
   if(!inv) return;
-  document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(inv.invoiceNumber, inv.date, inv.customerName, inv.customerMobile, inv.items, inv.discount);
+  document.getElementById('printReceiptArea').innerHTML = buildInvoiceHTML(inv.invoiceNumber, inv.date, inv.customerName, inv.customerMobile, inv.items, inv.discount, inv.advance);
   setTimeout(()=>window.print(), 100);
 }
-function whatsappStoredInvoice(invoiceNumber){
+function whatsappStoredInvoice(invoiceNumber, preOpenedTab){
   const inv = (invoicesCache||[]).find(i=>i.invoiceNumber===invoiceNumber);
   if(!inv) return;
-  sendInvoiceViaWhatsApp(inv.invoiceNumber, inv.date, inv.customerMobile, inv.items, inv.discount);
+  sendInvoiceViaWhatsApp(inv.invoiceNumber, inv.date, inv.customerMobile, inv.items, inv.discount, preOpenedTab, inv.advance);
 }
 function shareImageStoredInvoice(invoiceNumber){
   const inv = (invoicesCache||[]).find(i=>i.invoiceNumber===invoiceNumber);
   if(!inv) return;
-  shareInvoiceAsImage(inv.invoiceNumber, inv.date, inv.customerName, inv.customerMobile, inv.items, inv.discount);
+  shareInvoiceAsImage(inv.invoiceNumber, inv.date, inv.customerName, inv.customerMobile, inv.items, inv.discount, inv.advance);
 }
 function openEditInvoiceModal(invoiceNumber){
   const inv = (invoicesCache||[]).find(i=>i.invoiceNumber===invoiceNumber);
@@ -4956,7 +4973,11 @@ async function renderRepairJobs(){
     listEl.innerHTML = `<div class="empty">No repair jobs here.</div>`;
     return;
   }
-  listEl.innerHTML = list.map(j=>`
+  listEl.innerHTML = list.map(j=>{
+    const advance = j.advance||0;
+    const estimate = j.estimateCharges||j.charges||0;
+    const remaining = Math.max(0, estimate - advance);
+    return `
     <div class="card">
       <div class="item-row">
         <div class="item-info">
@@ -4964,15 +4985,17 @@ async function renderRepairJobs(){
           <div class="item-cat">${j.customerName}${j.phone?' · '+j.phone:''}</div>
           ${j.note ? `<div class="item-cat" style="margin-top:2px">${j.note}</div>` : ''}
           <div class="item-prices">Promised: <b>${j.promisedDate}</b>${j.status==='completed'?' · Delivered on '+j.completedDate:''}</div>
+          ${j.status==='pending' && (advance>0 || estimate>0) ? `<div class="item-prices" style="margin-top:4px;">${advance>0?`Advance: <b>${fmtMoney(advance)}</b>`:''}${advance>0 && estimate>0?' · ':''}${estimate>0?`Est: <b>${fmtMoney(estimate)}</b>`:''}${estimate>0?` · Remaining: <b style="color:var(--accent)">${fmtMoney(remaining)}</b>`:''}</div>` : ''}
         </div>
-        <span class="badge ${j.status==='completed'?'ok':'low'}">${j.status==='completed'?'Delivered':(j.charges>0?fmtMoney(j.charges):'TBD')}</span>
+        <span class="badge ${j.status==='completed'?'ok':'low'}">${j.status==='completed'?'Delivered':(estimate>0?fmtMoney(estimate):'TBD')}</span>
       </div>
       <div style="display:flex; gap:10px; margin-top:10px;">
         ${j.status==='pending' ? `<button class="secondary" style="flex:1" onclick="openDeliverRepairModal('${j.id}')">✓ Delivered &amp; Paid</button>` : ''}
+        ${j.invoiceNumber ? `<button class="secondary" onclick="openInvoiceDetailModal(${j.invoiceNumber})">🧾 #${String(j.invoiceNumber).padStart(5,'0')}</button>` : ''}
         <button class="danger-text" onclick="deleteRepairJob('${j.id}')">Delete</button>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 function setRepairFilter(f){ repairFilter=f; renderRepairJobs(); }
 function openRepairJobModal(){
@@ -4994,8 +5017,11 @@ function openRepairJobModal(){
       <input id="rj_note" placeholder="e.g. Screen broken, not charging">
       <label>Promised Delivery Date</label>
       <input type="date" id="rj_date" value="${tomorrowStr}">
-      <label>Charges to Collect (Rs) — leave blank if not decided yet</label>
-      <input id="rj_charges" type="number" inputmode="decimal" placeholder="Decide later">
+      <label>Estimated Total Charges (Rs) — leave blank if not decided yet</label>
+      <input id="rj_estimate" type="number" inputmode="decimal" placeholder="Decide later">
+      <label>Advance Received Now (Rs) — leave blank if none</label>
+      <input id="rj_advance" type="number" inputmode="decimal" placeholder="0">
+      <p style="color:var(--muted); font-size:11.5px; margin:-8px 0 12px; line-height:1.6;">This is just a reminder of cash already in hand — it won't be added to today's sale. The FULL amount (including this advance) is added to the sale in one go on the day you mark the job Delivered, so that day's sale and profit stay complete and accurate.</p>
       <button class="primary" onclick="saveRepairJob()">Add</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -5008,63 +5034,120 @@ async function saveRepairJob(){
   const mobileModel = document.getElementById('rj_model').value.trim();
   const note = document.getElementById('rj_note').value.trim();
   const promisedDate = document.getElementById('rj_date').value;
-  const charges = parseFloat(document.getElementById('rj_charges').value)||0;
+  const estimateCharges = parseFloat(document.getElementById('rj_estimate').value)||0;
+  const advance = parseFloat(document.getElementById('rj_advance').value)||0;
   if(!customerName){ showToast('Customer name is required'); return; }
   if(!mobileModel){ showToast('Mobile model is required'); return; }
+  if(advance>0 && estimateCharges>0 && advance>estimateCharges){ showToast('Advance can\'t be more than the estimated charges'); return; }
 
-  await findOrCreateCustomer(customerName, phone);
+  const customerId = await findOrCreateCustomer(customerName, phone);
+  const jobId = uid();
+
+  // Reserve an invoice number right away and print/send it as a deposit receipt —
+  // showing the estimate, advance paid, and balance due. Whoever brings this receipt
+  // (or quotes the invoice #) at pickup time can collect the item. The SAME invoice
+  // number is reused and updated at delivery to become the final settled bill.
+  if(!settings.nextInvoiceNumber) settings.nextInvoiceNumber = 1001;
+  const invoiceNumber = settings.nextInvoiceNumber;
+  settings.nextInvoiceNumber += 1;
+  await saveSettings();
+
+  // Advance is tracked as a reminder only — it is NOT logged as a sale now. The full
+  // bill (advance + remaining) is logged as one sale entry at delivery time, so that
+  // day's sale total and profit stay in one place instead of being split across days.
   repairJobs.push({
-    id: uid(), customerName, phone, mobileModel, note, promisedDate, charges,
+    id: jobId, customerName, phone, mobileModel, note, promisedDate,
+    estimateCharges, advance, charges: estimateCharges, invoiceNumber,
     status:'pending', createdDate: todayStr(), completedDate: null
   });
   await saveRepairJobs();
+
+  await saveInvoiceRecord({
+    invoiceNumber, date: todayStr(),
+    customerName, customerMobile: phone, customerId,
+    items: [{name: mobileModel + (note?' — '+note:''), qty:1, unitSell: estimateCharges, totalSell: estimateCharges}],
+    subtotal: estimateCharges, discount: 0, grandTotal: estimateCharges, advance,
+    saleRefs: [], repairJobId: jobId, createdAt: new Date().toISOString()
+  });
+
   document.querySelector('.modal-overlay').remove();
-  showToast('Repair job added ✓');
+  showToast(advance>0 ? 'Repair job added — advance noted (will be billed at delivery)' : 'Repair job added ✓');
   renderRepairJobs();
+  openInvoiceDetailModal(invoiceNumber);
 }
 function openDeliverRepairModal(id){
   const j = repairJobs.find(x=>x.id===id);
   if(!j) return;
+  const advance = j.advance||0;
+  const estimate = j.estimateCharges||j.charges||0;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
       <h3>${j.customerName} — Deliver &amp; Collect Payment</h3>
       <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">${j.mobileModel}${j.note?' — '+j.note:''}</p>
-      <label>Final Charges to Collect (Rs)</label>
-      <input id="dr_charges" type="number" inputmode="decimal" value="${j.charges||''}" placeholder="0">
-      <p style="color:var(--muted); font-size:12px; margin:-8px 0 14px; line-height:1.6;">Adjust if you're giving a discount or the amount wasn't set earlier.</p>
+      ${advance>0 ? `<p style="color:var(--muted); font-size:13px; margin-bottom:10px;">Advance already in hand: <b style="color:var(--text)">${fmtMoney(advance)}</b> — include this in the total below.</p>` : ''}
+      <label>Final Total Bill Amount (Rs)</label>
+      <input id="dr_charges" type="number" inputmode="decimal" value="${estimate||''}" placeholder="0">
+      <p style="color:var(--muted); font-size:12px; margin:-8px 0 8px; line-height:1.6;">Enter the FULL amount for this repair (advance + balance). This whole amount is added to today's sale in one entry, so today's sale and profit are complete.</p>
+      ${advance>0 ? `<p id="dr_balanceHint" style="color:var(--accent); font-size:12.5px; font-weight:600; margin:-4px 0 14px;"></p>` : ''}
       <button class="primary" onclick="confirmDeliverRepair('${id}')">Mark Delivered &amp; Add to Sale</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  if(advance>0){
+    const updateHint = ()=>{
+      const total = parseFloat(document.getElementById('dr_charges').value)||0;
+      const balance = Math.max(0, total-advance);
+      document.getElementById('dr_balanceHint').textContent = `Balance to collect from customer today: ${fmtMoney(balance)}`;
+    };
+    document.getElementById('dr_charges').addEventListener('input', updateHint);
+    updateHint();
+  }
 }
 async function confirmDeliverRepair(id){
   const j = repairJobs.find(x=>x.id===id);
   if(!j) return;
-  const finalCharges = parseFloat(document.getElementById('dr_charges').value)||0;
-  if(finalCharges<=0){ showToast('Enter the amount charged'); return; }
-  j.charges = finalCharges;
+  const totalCharges = parseFloat(document.getElementById('dr_charges').value)||0;
+  if(totalCharges<=0){ showToast('Enter the total bill amount'); return; }
+  j.finalCharges = totalCharges;
   j.status = 'completed';
   j.completedDate = todayStr();
   await saveRepairJobs();
 
+  // Log the FULL bill (advance + balance) as ONE sale entry on the delivery date —
+  // keeps that day's sale total and profit complete and in one place.
   const customerId = await findOrCreateCustomer(j.customerName, j.phone);
   const dateToUse = todayStr();
   const sales = await loadSales(dateToUse);
   const now = new Date();
+  const saleId = uid();
   sales.push({
-    id: uid(), itemId: null, name: j.mobileModel + (j.note ? ' — '+j.note : ' — Repair'),
-    qty: 1, unitCost: 0, unitSell: finalCharges,
-    totalSell: finalCharges, totalProfit: finalCharges,
+    id: saleId, itemId: null, name: j.mobileModel + (j.note ? ' — '+j.note : ' — Repair'),
+    qty: 1, unitCost: 0, unitSell: totalCharges,
+    totalSell: totalCharges, totalProfit: totalCharges,
     time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
     isService: true, category: 'Mobile Repair', customerName: j.customerName, customerId
   });
   await saveSales(dateToUse, sales);
+
+  // Update the SAME invoice number that was handed to the customer as the deposit
+  // receipt — it now becomes the final, fully-settled bill (no advance/balance split).
+  if(j.invoiceNumber){
+    await saveInvoiceRecord({
+      invoiceNumber: j.invoiceNumber, date: dateToUse,
+      customerName: j.customerName, customerMobile: j.phone, customerId,
+      items: [{name: j.mobileModel + (j.note?' — '+j.note:''), qty:1, unitSell: totalCharges, totalSell: totalCharges}],
+      subtotal: totalCharges, discount: 0, grandTotal: totalCharges, advance: 0,
+      saleRefs: [{date: dateToUse, id: saleId}], repairJobId: j.id, createdAt: new Date().toISOString()
+    });
+  }
+
   const overlay = document.querySelector('.modal-overlay');
   if(overlay) overlay.remove();
-  showToast('Marked as delivered — added to today\'s sale');
+  showToast('Marked as delivered — full amount added to today\'s sale');
   renderRepairJobs();
+  if(j.invoiceNumber) openInvoiceDetailModal(j.invoiceNumber);
 }
 async function deleteRepairJob(id){
   repairJobs = repairJobs.filter(x=>x.id!==id);
