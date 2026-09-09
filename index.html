@@ -3655,8 +3655,11 @@ function getPrevPeriodDates(){
   }
   if(reportPeriod==='weekly'){
     const monday = new Date(getWeekStart(reportDate)+'T00:00:00'); monday.setDate(monday.getDate()-7);
+    // Fair comparison: if this week is still in progress, only compare against the
+    // SAME number of days from last week — not last week's full 7 days.
+    const limitDays = daysElapsedInWeek(reportDate);
     const dates = [];
-    for(let i=0;i<=6;i++){ const d=new Date(monday); d.setDate(d.getDate()+i); dates.push(ymd(d)); }
+    for(let i=0;i<limitDays;i++){ const d=new Date(monday); d.setDate(d.getDate()+i); dates.push(ymd(d)); }
     return dates;
   }
   let [y,m] = reportMonth.split('-').map(Number);
@@ -3700,6 +3703,19 @@ function daysElapsedInMonth(monthStr){
   const curMonthStr = todayStr().slice(0,7);
   if(monthStr === curMonthStr) return Math.min(daysInMonth, parseInt(todayStr().slice(8,10),10));
   return daysInMonth;
+}
+function daysElapsedInWeek(dateStr){
+  // Same idea as daysElapsedInMonth, but for the current (in-progress) week: past
+  // weeks use the full 7 days, but this week only counts Monday through today.
+  const monday = getWeekStart(dateStr);
+  const curMonday = getWeekStart(todayStr());
+  if(monday === curMonday){
+    const mondayDate = new Date(monday+'T00:00:00');
+    const todayDate = new Date(todayStr()+'T00:00:00');
+    const diffDays = Math.round((todayDate - mondayDate)/86400000) + 1;
+    return Math.min(7, Math.max(1, diffDays));
+  }
+  return 7;
 }
 function pctChangeText(cur, prev){
   if(prev===0){ return cur>0 ? {text:'▲ New', color:'var(--green)'} : {text:'—', color:'var(--muted)'}; }
@@ -3756,7 +3772,7 @@ async function renderTrendSection(sales, totalSale, totalProfit){
     periodWord = reportPeriod==='weekly' ? 'Week' : 'Month';
   }
   prevTotals = await fetchTotalsForDates(getPrevPeriodDates());
-  const daysWithRange = reportPeriod==='monthly' ? Math.max(1, daysElapsedInMonth(reportMonth)) : dateTotals.length;
+  const daysWithRange = reportPeriod==='monthly' ? Math.max(1, daysElapsedInMonth(reportMonth)) : (reportPeriod==='weekly' ? Math.max(1, daysElapsedInWeek(reportDate)) : dateTotals.length);
   const avgBasisSale = reportPeriod==='daily' ? dateTotals.reduce((s,d)=>s+d.sale,0) : totalSale;
   const avgBasisProfit = reportPeriod==='daily' ? dateTotals.reduce((s,d)=>s+d.profit,0) : totalProfit;
   const avgSale = avgBasisSale / daysWithRange;
@@ -3765,14 +3781,20 @@ async function renderTrendSection(sales, totalSale, totalProfit){
   const saleChange = pctChangeText(totalSale, prevTotals.sale);
   const profitChange = pctChangeText(totalProfit, prevTotals.profit);
   const avgLabelSuffix = reportPeriod==='daily' ? ' (Last 7 Days)' : '';
-  // When the current month is still in progress, make it explicit that the "vs
-  // Previous Month" row is comparing the same number of days on both sides —
-  // otherwise "5 days vs whole last month" reads as a full-month comparison.
+  // When the current week/month is still in progress, make it explicit that the "vs
+  // Previous Week/Month" row is comparing the same number of days on both sides —
+  // otherwise "3 days vs whole last week/month" reads as a full-period comparison.
   let compareSuffix = '';
   if(reportPeriod==='monthly'){
     const curMonthStr = todayStr().slice(0,7);
     if(reportMonth === curMonthStr){
       const elapsedDays = parseInt(todayStr().slice(8,10),10);
+      compareSuffix = ` (first ${elapsedDays} day${elapsedDays===1?'':'s'} of each)`;
+    }
+  } else if(reportPeriod==='weekly'){
+    const curMonday = getWeekStart(todayStr());
+    if(getWeekStart(reportDate) === curMonday){
+      const elapsedDays = daysElapsedInWeek(reportDate);
       compareSuffix = ` (first ${elapsedDays} day${elapsedDays===1?'':'s'} of each)`;
     }
   }
