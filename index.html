@@ -4914,6 +4914,7 @@ async function renderCustomerDetail(id){
     <div id="custRepairList"></div>
 
     <div class="section-title">Sales History</div>
+    <div id="custSalesSummary" class="card" style="margin-bottom:12px;"><div class="empty">Loading...</div></div>
     <div id="custSalesList"><div class="empty">Loading...</div></div>
   `;
 
@@ -4946,6 +4947,7 @@ async function renderCustomerDetail(id){
   `).join('');
 
   const salesListEl = document.getElementById('custSalesList');
+  const summaryEl = document.getElementById('custSalesSummary');
   try{
     const snapshot = await db.collection('sales').get();
     let matches = [];
@@ -4958,6 +4960,15 @@ async function renderCustomerDetail(id){
       });
     });
     matches.sort((a,b)=> b._date.localeCompare(a._date));
+
+    const totalSale = matches.reduce((s,m)=>s+(m.totalSell||0),0);
+    const totalProfit = matches.reduce((s,m)=>s+(m.totalProfit||0),0);
+    summaryEl.innerHTML = `
+      <div class="sale-list-item"><div>Total Orders</div><div class="t" style="font-weight:600;">${matches.length}</div></div>
+      <div class="sale-list-item"><div>Total Sale (Lifetime)</div><div class="t" style="font-weight:600; font-family:'JetBrains Mono',monospace;">${fmtMoney(totalSale)}</div></div>
+      <div class="sale-list-item"><div>Total Profit (Lifetime)</div><div class="t profit-val" data-amt="${totalProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'••••'}</div></div>
+    `;
+
     salesListEl.innerHTML = matches.length===0 ? `<div class="empty">No past sales linked to this customer.</div>` : matches.map(s=>`
       <div class="sale-list-item">
         <div><div>${s.name} × ${s.qty}</div><div class="t">${s._date} · ${s.time}</div></div>
@@ -4966,6 +4977,7 @@ async function renderCustomerDetail(id){
     `).join('');
   }catch(e){
     console.error(e);
+    summaryEl.innerHTML = '';
     salesListEl.innerHTML = `<div class="empty">Could not load sales history.</div>`;
   }
 }
