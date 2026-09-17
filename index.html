@@ -784,6 +784,62 @@ function refreshCustomerDatalist(){
   if(!dl) return;
   dl.innerHTML = customers.map(c=>`<option value="${c.name}">`).join('');
 }
+// Merge a duplicate customer record into an existing one with the same name —
+// re-tags every sale, credit entry, repair job, and invoice from `source` over to
+// `target`, then removes `source`. Used when editing a customer's name to match
+// another already-saved customer (e.g. one added manually, one picked from contacts).
+async function mergeCustomers(source, target){
+  showToast('Merging customer records…');
+  try{
+    const snapshot = await db.collection('sales').get();
+    const writes = [];
+    snapshot.forEach(doc=>{
+      const arr = doc.data().list || [];
+      let changed = false;
+      arr.forEach(s=>{
+        if(s.customerId===source.id || (s.customerName && s.customerName.toLowerCase()===source.name.toLowerCase())){
+          s.customerId = target.id;
+          s.customerName = target.name;
+          changed = true;
+        }
+      });
+      if(changed) writes.push(db.collection('sales').doc(doc.id).set({list:arr}));
+    });
+    await Promise.all(writes);
+
+    let creditChanged = false;
+    creditEntries.forEach(e=>{
+      if(e.customer && e.customer.toLowerCase()===source.name.toLowerCase()){
+        e.customer = target.name;
+        creditChanged = true;
+      }
+    });
+    if(creditChanged) await saveCredit();
+
+    let repairChanged = false;
+    repairJobs.forEach(j=>{
+      if(j.customerName && j.customerName.toLowerCase()===source.name.toLowerCase()){
+        j.customerName = target.name;
+        if(!j.phone && target.phone) j.phone = target.phone;
+        repairChanged = true;
+      }
+    });
+    if(repairChanged) await saveRepairJobs();
+
+    const invoiceMatches = (invoicesCache||[]).filter(inv=> inv.customerId===source.id || (inv.customerName && inv.customerName.toLowerCase()===source.name.toLowerCase()));
+    for(const inv of invoiceMatches){
+      await saveInvoiceRecord({...inv, customerId: target.id, customerName: target.name});
+    }
+
+    if(!target.phone && source.phone) target.phone = source.phone;
+    customers = customers.filter(c=>c.id!==source.id);
+    await saveCustomers();
+  }catch(e){
+    console.error(e);
+    showToast('Merge failed — check internet connection and try again');
+    throw e;
+  }
+}
 /* Phone's native Contact Picker (Chrome on Android only). Feature-detected so the
    button simply doesn't render on browsers/devices that don't support it. */
 const contactPickerSupported = (typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window);
@@ -804,6 +860,37 @@ async function pickContact(nameFieldId, phoneFieldId){
   }catch(e){
     console.error(e);
     if(e && e.name!=='AbortError') showToast('Could not read contact — try again');
+  }
+}
+// Bulk-import many phone contacts as Customers in one go, so their names+numbers are
+// available for autocomplete/autofill everywhere (Sale, Bill, Service, Repair,
+// Invoice) without opening the native picker over and over for each one.
+async function importAllContacts(){
+  if(!contactPickerSupported){ showToast('Contact picker not supported on this browser'); return; }
+  try{
+    const results = await navigator.contacts.select(['name','tel'], {multiple:true});
+    if(!results || results.length===0) return;
+    let added = 0, skipped = 0, noNumber = 0;
+    results.forEach(c=>{
+      const name = (c.name && c.name.length) ? c.name[0].trim() : '';
+      const phone = (c.tel && c.tel.length) ? c.tel[0].trim() : '';
+      if(!name){ return; }
+      if(!phone){ noNumber++; return; }
+      const dup = customers.find(x=>x.name.toLowerCase()===name.toLowerCase());
+      if(dup){
+        if(!dup.phone) dup.phone = phone; // fill in a missing number for an existing customer
+        skipped++;
+        return;
+      }
+      customers.push({id:uid(), name, phone, createdDate: todayStr()});
+      added++;
+    });
+    await saveCustomers();
+    showToast(`Imported ${added} new contact${added===1?'':'s'}${skipped>0?` · ${skipped} already existed`:''}${noNumber>0?` · ${noNumber} skipped (no number)`:''}`);
+    renderCustomers();
+  }catch(e){
+    console.error(e);
+    if(e && e.name!=='AbortError') showToast('Could not read contacts — try again');
   }
 }
 
@@ -1007,7 +1094,7 @@ async function openEditSaleModal(dateStr, saleId){
       <label>Unit Cost</label>
       <input id="es_unitcost" type="number" inputmode="decimal" value="${s.unitCost}">
       <label>Customer Name (optional)</label>
-      <input id="es_customer" list="customerDatalist" value="${s.customerName||''}">
+      <input id="es_customer" list="customerDatalist" value="${s.customerName||''}" oninput="autofillCustomerPhone('es_customer','es_phone')">
       <label>Customer Phone (optional)</label>
       <input id="es_phone" value="">
       ${contactPickBtn('es_customer','es_phone')}
@@ -1065,7 +1152,7 @@ function openInvoiceModal(dateStr, saleId){
     <div class="modal">
       <h3>Generate Invoice</h3>
       <label>Customer Name (optional)</label>
-      <input id="inv_customer_name" placeholder="e.g. Ahmed Bhai">
+      <input id="inv_customer_name" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('inv_customer_name','inv_customer_mobile')">
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
@@ -1077,6 +1164,7 @@ function openInvoiceModal(dateStr, saleId){
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  refreshCustomerDatalist();
 }
 function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, lineItems, discount, advance){
   discount = discount || 0;
@@ -1543,7 +1631,7 @@ function openMultiInvoiceModal(){
     <div class="modal">
       <h3>Combine ${selectedSaleIds.size} Items into One Invoice</h3>
       <label>Customer Name (optional)</label>
-      <input id="inv_customer_name" placeholder="e.g. Ahmed Bhai">
+      <input id="inv_customer_name" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('inv_customer_name','inv_customer_mobile')">
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
@@ -1555,6 +1643,7 @@ function openMultiInvoiceModal(){
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  refreshCustomerDatalist();
 }
 async function generateMultiInvoice(action){
   action = action || 'print';
@@ -1749,7 +1838,7 @@ function openReportMultiInvoiceModal(){
     <div class="modal">
       <h3>Combine ${reportSelectedSales.size} Items into One Invoice</h3>
       <label>Customer Name (optional)</label>
-      <input id="inv_customer_name" placeholder="e.g. Ahmed Bhai">
+      <input id="inv_customer_name" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('inv_customer_name','inv_customer_mobile')">
       <label>Customer Mobile Number (optional)</label>
       <input id="inv_customer_mobile" type="tel" inputmode="tel" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('inv_customer_name','inv_customer_mobile')}
@@ -1761,6 +1850,7 @@ function openReportMultiInvoiceModal(){
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  refreshCustomerDatalist();
 }
 async function generateReportMultiInvoice(action){
   action = action || 'print';
@@ -2888,7 +2978,7 @@ function openStartBillModal(){
       <h3>Start New Bill</h3>
       <p style="color:var(--muted); font-size:12.5px; margin-bottom:14px; line-height:1.6;">Add the customer's details once, then add all their items to this bill — a single invoice will be made at the end.</p>
       <label>Customer Name (optional)</label>
-      <input id="bill_customer_name" placeholder="e.g. Amir Bhai">
+      <input id="bill_customer_name" list="customerDatalist" placeholder="e.g. Amir Bhai" oninput="autofillCustomerPhone('bill_customer_name','bill_customer_phone')">
       <label>Customer Phone Number (optional)</label>
       <input id="bill_customer_phone" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('bill_customer_name','bill_customer_phone')}
@@ -3464,9 +3554,18 @@ function autofillCustomerPhone(nameFieldId, phoneFieldId){
   const phoneEl = document.getElementById(phoneFieldId);
   if(!nameEl || !phoneEl) return;
   const name = nameEl.value.trim().toLowerCase();
-  if(!name){ return; }
-  const match = customers.find(c=>c.name.toLowerCase()===name);
-  if(match && match.phone && !phoneEl.value){ phoneEl.value = match.phone; }
+  const match = name ? customers.find(c=>c.name.toLowerCase()===name) : null;
+  if(match && match.phone){
+    if(!phoneEl.value || phoneEl.dataset.autofilled==='1'){
+      phoneEl.value = match.phone;
+      phoneEl.dataset.autofilled = '1';
+    }
+  } else if(phoneEl.dataset.autofilled==='1'){
+    // Name no longer matches a saved customer — clear what we auto-filled earlier
+    // rather than leaving a stale, unrelated phone number sitting in the field.
+    phoneEl.value = '';
+    delete phoneEl.dataset.autofilled;
+  }
 }
 function stepQty(delta, id){
   const it = items.find(i=>i.id===id);
@@ -4813,6 +4912,8 @@ async function renderCustomers(){
     <input id="customerSearchInput" placeholder="Search customer name or phone" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
     <div id="customerListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openCustomerModal()">+ Add Customer</button>
+    ${contactPickerSupported ? `<button class="secondary" style="width:100%; margin-top:10px" onclick="importAllContacts()">📥 Import All Phone Contacts</button>
+    <p style="color:var(--muted); font-size:11.5px; margin:8px 0 0; line-height:1.6;">Imports every contact you pick at once. Once imported, typing any of their names anywhere in the app (Sale, Bill, Service, Repair) auto-fills their phone number — no need to open the picker each time.</p>` : ''}
   `;
   document.getElementById('view').innerHTML = html;
   document.getElementById('customerSearchInput').focus();
@@ -4859,7 +4960,21 @@ async function saveCustomerEntry(existingId){
   if(!name){ showToast('Customer name is required'); return; }
   if(existingId){
     const c = customers.find(x=>x.id===existingId);
-    if(c){ c.name = name; c.phone = phone; }
+    if(c){
+      const dupOther = customers.find(x=>x.id!==existingId && x.name.toLowerCase()===name.toLowerCase());
+      if(dupOther){
+        // Renamed to match an already-existing customer — merge this one INTO that
+        // one instead of creating a second record with the same name.
+        if(phone) c.phone = phone;
+        await mergeCustomers(c, dupOther);
+        document.querySelector('.modal-overlay').remove();
+        showToast(`Merged — all sales, credit & repair history combined into "${dupOther.name}" ✓`);
+        if(currentView==='customerDetail'){ currentCustomerId = dupOther.id; renderCustomerDetail(dupOther.id); }
+        else renderCustomers();
+        return;
+      }
+      c.name = name; c.phone = phone;
+    }
   } else {
     const dup = customers.find(c=>c.name.toLowerCase()===name.toLowerCase());
     if(dup){ showToast('A customer with this name already exists'); return; }
@@ -5042,9 +5157,10 @@ function openRepairJobModal(){
     <div class="modal">
       <h3>Add Repair Job</h3>
       <label>Customer Name</label>
-      <input id="rj_customer" list="customerDatalist" placeholder="e.g. Ahmed Bhai">
+      <input id="rj_customer" list="customerDatalist" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('rj_customer','rj_phone')">
       <label>Phone Number</label>
       <input id="rj_phone" placeholder="e.g. 0300-1234567">
+      ${contactPickBtn('rj_customer','rj_phone')}
       <label>Mobile Model</label>
       <input id="rj_model" placeholder="e.g. Vivo Y20">
       <label>What's wrong / Note (optional)</label>
