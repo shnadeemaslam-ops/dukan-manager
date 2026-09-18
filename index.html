@@ -765,6 +765,39 @@ async function saveCustomers(){
   try{ await db.collection('shop').doc('customers').set({list: customers}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
+
+// Phone contacts imported in bulk sit HERE, separate from real Customers — they're
+// just a fast local lookup used by the "Pick from Phone Contacts" button. A contact
+// only becomes a real Customer when it's actually picked and used on a sale/bill.
+let importedContacts = [];
+async function loadImportedContacts(){
+  try{
+    const doc = await db.collection('shop').doc('importedContacts').get();
+    importedContacts = doc.exists && doc.data().list ? doc.data().list : [];
+  }catch(e){ importedContacts = []; console.error(e); }
+}
+async function saveImportedContacts(){
+  try{ await db.collection('shop').doc('importedContacts').set({list: importedContacts}); scheduleAutoBackup(); }
+  catch(e){ showToast('Cloud save failed — check internet connection'); }
+}
+
+// Phone Contacts: a separate directory imported from the phone's native contact
+// list — kept apart from Customers so importing doesn't flood the customer list
+// with people who never actually bought anything. "Pick from Contacts" everywhere
+// in the app searches THIS list; a person only becomes a real Customer once a
+// sale/bill/job is actually recorded under their name.
+let phoneContacts = [];
+async function loadPhoneContacts(){
+  try{
+    const doc = await db.collection('shop').doc('phoneContacts').get();
+    phoneContacts = doc.exists && doc.data().list ? doc.data().list : [];
+  }catch(e){ phoneContacts = []; console.error(e); }
+}
+async function savePhoneContacts(){
+  try{ await db.collection('shop').doc('phoneContacts').set({list: phoneContacts}); scheduleAutoBackup(); }
+  catch(e){ showToast('Cloud save failed — check internet connection'); }
+}
+
 async function findOrCreateCustomer(name, phone){
   const trimmed = (name||'').trim();
   if(!trimmed) return null;
@@ -840,31 +873,64 @@ async function mergeCustomers(source, target){
     throw e;
   }
 }
-/* Phone's native Contact Picker (Chrome on Android only). Feature-detected so the
-   button simply doesn't render on browsers/devices that don't support it. */
+/* Phone's native Contact Picker (Chrome on Android only) — used only for the bulk
+   "Import from Phone" action into the Phone Contacts directory. Everyday "Pick from
+   Contacts" buttons open a fast in-app list from that directory instead of invoking
+   the native picker every single time. */
 const contactPickerSupported = (typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window);
 function contactPickBtn(nameFieldId, phoneFieldId){
-  if(!contactPickerSupported) return '';
-  return `<button type="button" class="secondary" style="padding:7px 10px; font-size:12px; margin:4px 0 10px; width:100%" onclick="pickContact('${nameFieldId}','${phoneFieldId}')">📱 Pick from Phone Contacts</button>`;
+  return `<button type="button" class="secondary" style="padding:7px 10px; font-size:12px; margin:4px 0 10px; width:100%" onclick="openContactPickerModal('${nameFieldId}','${phoneFieldId}')">📱 Pick from Contacts</button>`;
 }
-async function pickContact(nameFieldId, phoneFieldId){
-  if(!contactPickerSupported){ showToast('Contact picker not supported on this browser'); return; }
-  try{
-    const results = await navigator.contacts.select(['name','tel'], {multiple:false});
-    if(!results || results.length===0) return;
-    const c = results[0];
-    const nameEl = document.getElementById(nameFieldId);
-    const phoneEl = document.getElementById(phoneFieldId);
-    if(nameEl && c.name && c.name.length){ nameEl.value = c.name[0]; nameEl.dispatchEvent(new Event('input')); }
-    if(phoneEl && c.tel && c.tel.length){ phoneEl.value = c.tel[0]; }
-  }catch(e){
-    console.error(e);
-    if(e && e.name!=='AbortError') showToast('Could not read contact — try again');
+function openContactPickerModal(nameFieldId, phoneFieldId){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'contactPickerOverlay';
+  overlay.dataset.nameField = nameFieldId;
+  overlay.dataset.phoneField = phoneFieldId;
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Pick a Contact</h3>
+      <input id="contactPickerSearchInput" placeholder="Search name or phone" oninput="renderContactPickerList(this.value)">
+      <div id="contactPickerList" style="max-height:320px; overflow-y:auto; margin:10px 0;"></div>
+      ${contactPickerSupported ? `<button class="secondary" style="width:100%;" onclick="importAllContacts()">📥 Import More from Phone</button>` : `<p style="color:var(--muted); font-size:12px;">Importing isn't supported on this browser — add the number manually instead.</p>`}
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  document.getElementById('contactPickerSearchInput').focus();
+  renderContactPickerList('');
+}
+function renderContactPickerList(q){
+  q = (q||'').trim().toLowerCase();
+  const listEl = document.getElementById('contactPickerList');
+  if(!listEl) return;
+  const list = phoneContacts.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+  if(list.length===0){
+    listEl.innerHTML = `<div class="empty">${phoneContacts.length===0 ? 'No contacts imported yet — use the button below.' : 'No matching contacts.'}</div>`;
+    return;
   }
+  listEl.innerHTML = list.map(c=>`
+    <div class="item-row" style="padding:10px 0; border-bottom:1px solid var(--border,#2a2a2a); cursor:pointer;" onclick="selectPickedContact('${c.id}')">
+      <div class="item-info">
+        <div class="item-name" style="font-size:13.5px;">${c.name}</div>
+        <div class="item-cat">${c.phone||''}</div>
+      </div>
+    </div>
+  `).join('');
 }
-// Bulk-import many phone contacts as Customers in one go, so their names+numbers are
-// available for autocomplete/autofill everywhere (Sale, Bill, Service, Repair,
-// Invoice) without opening the native picker over and over for each one.
+function selectPickedContact(contactId){
+  const overlay = document.getElementById('contactPickerOverlay');
+  if(!overlay) return;
+  const c = phoneContacts.find(x=>x.id===contactId);
+  if(!c) return;
+  const nameEl = document.getElementById(overlay.dataset.nameField);
+  const phoneEl = document.getElementById(overlay.dataset.phoneField);
+  if(nameEl){ nameEl.value = c.name; nameEl.dispatchEvent(new Event('input')); }
+  if(phoneEl){ phoneEl.value = c.phone||''; }
+  overlay.remove();
+}
+// Bulk-import many phone contacts into the Phone Contacts directory in one go (NOT
+// into Customers), so their names+numbers are available for the in-app contact
+// picker and for autofill everywhere (Sale, Bill, Service, Repair, Invoice).
 async function importAllContacts(){
   if(!contactPickerSupported){ showToast('Contact picker not supported on this browser'); return; }
   try{
@@ -876,18 +942,19 @@ async function importAllContacts(){
       const phone = (c.tel && c.tel.length) ? c.tel[0].trim() : '';
       if(!name){ return; }
       if(!phone){ noNumber++; return; }
-      const dup = customers.find(x=>x.name.toLowerCase()===name.toLowerCase());
+      const dup = phoneContacts.find(x=>x.name.toLowerCase()===name.toLowerCase());
       if(dup){
-        if(!dup.phone) dup.phone = phone; // fill in a missing number for an existing customer
+        if(!dup.phone) dup.phone = phone; // fill in a missing number for an already-imported contact
         skipped++;
         return;
       }
-      customers.push({id:uid(), name, phone, createdDate: todayStr()});
+      phoneContacts.push({id:uid(), name, phone, createdDate: todayStr()});
       added++;
     });
-    await saveCustomers();
+    await savePhoneContacts();
     showToast(`Imported ${added} new contact${added===1?'':'s'}${skipped>0?` · ${skipped} already existed`:''}${noNumber>0?` · ${noNumber} skipped (no number)`:''}`);
-    renderCustomers();
+    if(currentView==='customers') renderCustomers();
+    if(document.getElementById('contactPickerList')) renderContactPickerList(document.getElementById('contactPickerSearchInput') ? document.getElementById('contactPickerSearchInput').value : '');
   }catch(e){
     console.error(e);
     if(e && e.name!=='AbortError') showToast('Could not read contacts — try again');
@@ -988,6 +1055,13 @@ function startRealtimeSync(){
     if(doc.exists && doc.data().list){
       suppliers = doc.data().list;
       if(currentView==='purchases') refreshCurrentView();
+    }
+  }, e=>console.error(e));
+
+  db.collection('shop').doc('phoneContacts').onSnapshot(doc=>{
+    if(doc.exists && doc.data().list){
+      phoneContacts = doc.data().list;
+      if(currentView==='customers') refreshCurrentView();
     }
   }, e=>console.error(e));
 
@@ -4904,16 +4978,20 @@ async function deleteExpenseEntry(id){
 
 /* ---------------- CUSTOMERS ---------------- */
 let customerSearch = '';
+let customerTab = 'customers'; // 'customers' | 'contacts'
 async function renderCustomers(){
+  if(customerTab==='contacts'){ renderPhoneContactsTab(); return; }
   const q = customerSearch.trim().toLowerCase();
   const list = customers.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).slice().sort((a,b)=>a.name.localeCompare(b.name));
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="secondary" style="flex:1; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;" onclick="setCustomerTab('customers')">Customers</button>
+      <button class="secondary" style="flex:1" onclick="setCustomerTab('contacts')">📱 Phone Contacts</button>
+    </div>
     <input id="customerSearchInput" placeholder="Search customer name or phone" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
     <div id="customerListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openCustomerModal()">+ Add Customer</button>
-    ${contactPickerSupported ? `<button class="secondary" style="width:100%; margin-top:10px" onclick="importAllContacts()">📥 Import All Phone Contacts</button>
-    <p style="color:var(--muted); font-size:11.5px; margin:8px 0 0; line-height:1.6;">Imports every contact you pick at once. Once imported, typing any of their names anywhere in the app (Sale, Bill, Service, Repair) auto-fills their phone number — no need to open the picker each time.</p>` : ''}
   `;
   document.getElementById('view').innerHTML = html;
   document.getElementById('customerSearchInput').focus();
@@ -4935,6 +5013,47 @@ async function renderCustomers(){
       </div>
     </div>
   `).join('');
+}
+function setCustomerTab(t){ customerTab=t; customerSearch=''; renderCustomers(); }
+function renderPhoneContactsTab(){
+  const q = customerSearch.trim().toLowerCase();
+  const list = phoneContacts.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  let html = `
+    <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="secondary" style="flex:1" onclick="setCustomerTab('customers')">Customers</button>
+      <button class="secondary" style="flex:1; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;" onclick="setCustomerTab('contacts')">📱 Phone Contacts</button>
+    </div>
+    <p style="color:var(--muted); font-size:11.5px; margin:-6px 0 12px; line-height:1.6;">A separate directory imported from your phone — importing here does NOT add them to Customers. "Pick from Contacts" anywhere in the app searches this list. A person becomes a real Customer only once you actually record a sale/bill/job under their name.</p>
+    ${contactPickerSupported ? `<button class="primary" style="width:100%; margin-bottom:14px" onclick="importAllContacts()">📥 Import from Phone</button>` : `<p style="color:var(--muted); font-size:12px;">Importing contacts isn't supported on this browser — this list only fills from imports made on a supported Android Chrome browser.</p>`}
+    <input id="customerSearchInput" placeholder="Search phone contacts" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
+    <div id="customerListBody"></div>
+  `;
+  document.getElementById('view').innerHTML = html;
+  document.getElementById('customerSearchInput').focus();
+  document.getElementById('customerSearchInput').selectionStart = document.getElementById('customerSearchInput').selectionEnd = customerSearch.length;
+
+  const listEl = document.getElementById('customerListBody');
+  if(list.length===0){
+    listEl.innerHTML = `<div class="empty">${phoneContacts.length===0 ? 'No contacts imported yet.' : 'No matching contacts.'}</div>`;
+    return;
+  }
+  listEl.innerHTML = list.map(c=>`
+    <div class="card">
+      <div class="item-row">
+        <div class="item-info">
+          <div class="item-name">${c.name}</div>
+          <div class="item-cat">${c.phone || 'No phone number'}</div>
+        </div>
+        <span style="cursor:pointer; font-size:18px; color:var(--red);" onclick="deletePhoneContact('${c.id}')">🗑</span>
+      </div>
+    </div>
+  `).join('');
+}
+async function deletePhoneContact(id){
+  phoneContacts = phoneContacts.filter(x=>x.id!==id);
+  await savePhoneContacts();
+  renderPhoneContactsTab();
 }
 function setCustomerSearch(v){ customerSearch = v; renderCustomers(); }
 function openCustomerModal(existingId){
@@ -5891,7 +6010,7 @@ document.addEventListener('wheel', e=>{
     document.getElementById('view').innerHTML = `<div class="empty" style="padding:40px 20px; line-height:1.7;">Could not connect to the cloud database.<br>Please check your internet connection and reopen the app.</div>`;
     return;
   }
-  const loadResults = await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs(), loadSuppliers()]);
+  const loadResults = await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs(), loadSuppliers(), loadPhoneContacts()]);
   const partTypesLoadStatus = loadResults[2];
   const categoriesLoadStatus = loadResults[8];
   subscribeToInvoices();
