@@ -1848,7 +1848,7 @@ async function switchView(v){
   el.innerHTML = '<div class="empty">Loading...</div>';
   if(v==='dashboard'){ subscribeToSalesDate(todayStr()); await renderDashboard(); }
   else if(v==='inventory') await renderInventory();
-  else if(v==='sale') await renderSale();
+  else if(v==='sale'){ saleDate = todayStr(); await renderSale(); }
   else if(v==='report'){ subscribeToSalesDate(reportDate); await renderReport(); }
   else if(v==='more') await renderMore();
   else if(v==='credit') await renderCredit();
@@ -2927,7 +2927,12 @@ function setModelCompatSubFilter(p){ modelCompatSubFilter = p; renderModelCompat
 
 /* ---------------- SALE ---------------- */
 async function renderSale(){
-  saleDate = todayStr();
+  // Only default to today the FIRST time (or after switchView resets it on a fresh
+  // visit to this tab) — NOT on every re-render. This view re-renders whenever
+  // background data changes (e.g. stock updates from the sale that was just made),
+  // and resetting the date on every one of those would silently snap a selected
+  // past date back to today mid-sale.
+  if(!saleDate) saleDate = todayStr();
   let html = `
     <label>Sale Date</label>
     <input type="date" id="saleDateInput" value="${saleDate}" max="${todayStr()}" onchange="setSaleDate(this.value)">
@@ -3722,6 +3727,13 @@ async function confirmSale(id){
     return;
   }
 
+  // Capture the selected Sale Date BEFORE any await — saveItem() below writes to
+  // Firestore, and the real-time items listener can re-render this page (resetting
+  // the Sale Date field back to today) before the rest of this function finishes.
+  // Locking it into a local variable first means a past-date sale always lands on
+  // the date that was actually selected, not on whatever the field reset to.
+  const dateToUse = saleDate || todayStr();
+
   const it = items.find(i=>i.id===id);
   it.qty -= qty;
   await saveItem(it);
@@ -3729,7 +3741,6 @@ async function confirmSale(id){
   let customerId = null;
   if(customerName) customerId = await findOrCreateCustomer(customerName, customerPhone);
 
-  const dateToUse = saleDate || todayStr();
   const sales = await loadSales(dateToUse);
   const now = new Date();
   const saleId = uid();
@@ -4978,17 +4989,19 @@ async function deleteExpenseEntry(id){
 
 /* ---------------- CUSTOMERS ---------------- */
 let customerSearch = '';
-let customerTab = 'customers'; // 'customers' | 'contacts'
+let customerTab = 'customers'; // 'customers' | 'contacts' | 'report'
+function customerTabsHtml(active){
+  const tabBtn = (key,label)=> `<button class="secondary" style="flex:1; ${active===key?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="setCustomerTab('${key}')">${label}</button>`;
+  return `<div style="display:flex; gap:6px; margin-bottom:14px;">${tabBtn('customers','Customers')}${tabBtn('contacts','📱 Contacts')}${tabBtn('report','🏆 Top Customers')}</div>`;
+}
 async function renderCustomers(){
   if(customerTab==='contacts'){ renderPhoneContactsTab(); return; }
+  if(customerTab==='report'){ renderCustomerReportTab(); return; }
   const q = customerSearch.trim().toLowerCase();
   const list = customers.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).slice().sort((a,b)=>a.name.localeCompare(b.name));
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
-    <div style="display:flex; gap:8px; margin-bottom:14px;">
-      <button class="secondary" style="flex:1; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;" onclick="setCustomerTab('customers')">Customers</button>
-      <button class="secondary" style="flex:1" onclick="setCustomerTab('contacts')">📱 Phone Contacts</button>
-    </div>
+    ${customerTabsHtml('customers')}
     <input id="customerSearchInput" placeholder="Search customer name or phone" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
     <div id="customerListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openCustomerModal()">+ Add Customer</button>
@@ -5015,15 +5028,78 @@ async function renderCustomers(){
   `).join('');
 }
 function setCustomerTab(t){ customerTab=t; customerSearch=''; renderCustomers(); }
+// Top Customers report: ranks every customer with at least one recorded sale, by
+// lifetime Total Sale or Total Profit, over All Time / This Month / Last 30 Days.
+let customerReportSort = 'sale'; // 'sale' | 'profit'
+let customerReportPeriod = 'all'; // 'all' | 'month' | '30d'
+async function renderCustomerReportTab(){
+  document.getElementById('view').innerHTML = `
+    <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
+    ${customerTabsHtml('report')}
+    <div class="chips" style="margin-bottom:6px;">
+      <div class="chip ${customerReportPeriod==='all'?'active':''}" onclick="setCustomerReportPeriod('all')">All Time</div>
+      <div class="chip ${customerReportPeriod==='month'?'active':''}" onclick="setCustomerReportPeriod('month')">This Month</div>
+      <div class="chip ${customerReportPeriod==='30d'?'active':''}" onclick="setCustomerReportPeriod('30d')">Last 30 Days</div>
+    </div>
+    <div class="chips" style="margin-bottom:14px;">
+      <div class="chip ${customerReportSort==='sale'?'active':''}" onclick="setCustomerReportSort('sale')">Rank by Sale</div>
+      <div class="chip ${customerReportSort==='profit'?'active':''}" onclick="setCustomerReportSort('profit')">Rank by Profit</div>
+    </div>
+    <div id="customerReportList"><div class="empty">Loading...</div></div>
+  `;
+  const listEl = document.getElementById('customerReportList');
+  try{
+    const snapshot = await db.collection('sales').get();
+    let cutoff = null;
+    if(customerReportPeriod==='month') cutoff = todayStr().slice(0,7)+'-01';
+    else if(customerReportPeriod==='30d'){ const d=new Date(); d.setDate(d.getDate()-30); cutoff = ymd(d); }
+
+    const totals = {}; // key: customerId or lowercase name -> {name, orders, sale, profit}
+    snapshot.forEach(doc=>{
+      if(cutoff && doc.id < cutoff) return;
+      const arr = doc.data().list || [];
+      arr.forEach(s=>{
+        if(!s.customerName) return;
+        const key = s.customerId || ('name:'+s.customerName.toLowerCase());
+        if(!totals[key]) totals[key] = {name: s.customerName, orders:0, sale:0, profit:0};
+        totals[key].orders += 1;
+        totals[key].sale += (s.totalSell||0);
+        totals[key].profit += (s.totalProfit||0);
+      });
+    });
+    let ranked = Object.values(totals).sort((a,b)=> customerReportSort==='sale' ? b.sale-a.sale : b.profit-a.profit);
+
+    if(ranked.length===0){
+      listEl.innerHTML = `<div class="empty">No sales found for this period.</div>`;
+      return;
+    }
+    listEl.innerHTML = ranked.map((r,idx)=>`
+      <div class="card">
+        <div class="item-row">
+          <div class="item-info">
+            <div class="item-name">#${idx+1} · ${r.name}</div>
+            <div class="item-cat">${r.orders} order${r.orders===1?'':'s'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="cost-val" data-amt="${r.sale}" style="cursor:pointer; font-weight:600;" onclick="togglePrices()">${pricesVisible?fmtMoney(r.sale):'••••'}</div>
+            <div class="profit-val" data-amt="${r.profit}" style="cursor:pointer; color:var(--green); font-size:12px; margin-top:2px;" onclick="toggleProfitValue()">Profit: ${profitVisible?fmtMoney(r.profit):'••••'}</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    console.error(e);
+    listEl.innerHTML = `<div class="empty">Could not load report.</div>`;
+  }
+}
+function setCustomerReportSort(s){ customerReportSort=s; renderCustomerReportTab(); }
+function setCustomerReportPeriod(p){ customerReportPeriod=p; renderCustomerReportTab(); }
 function renderPhoneContactsTab(){
   const q = customerSearch.trim().toLowerCase();
   const list = phoneContacts.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).slice().sort((a,b)=>a.name.localeCompare(b.name));
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
-    <div style="display:flex; gap:8px; margin-bottom:14px;">
-      <button class="secondary" style="flex:1" onclick="setCustomerTab('customers')">Customers</button>
-      <button class="secondary" style="flex:1; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;" onclick="setCustomerTab('contacts')">📱 Phone Contacts</button>
-    </div>
+    ${customerTabsHtml('contacts')}
     <p style="color:var(--muted); font-size:11.5px; margin:-6px 0 12px; line-height:1.6;">A separate directory imported from your phone — importing here does NOT add them to Customers. "Pick from Contacts" anywhere in the app searches this list. A person becomes a real Customer only once you actually record a sale/bill/job under their name.</p>
     ${contactPickerSupported ? `<button class="primary" style="width:100%; margin-bottom:14px" onclick="importAllContacts()">📥 Import from Phone</button>` : `<p style="color:var(--muted); font-size:12px;">Importing contacts isn't supported on this browser — this list only fills from imports made on a supported Android Chrome browser.</p>`}
     <input id="customerSearchInput" placeholder="Search phone contacts" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
