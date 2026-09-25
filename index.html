@@ -188,7 +188,13 @@
     display:flex; align-items:center; justify-content:space-between; gap:10px;
   }
   .search-wrap{position:relative;}
-  .search-wrap input{padding-right:44px;}
+  .search-wrap input{padding-right:78px;}
+  .clear-btn{
+    position:absolute; right:44px; top:50%; transform:translateY(-50%);
+    width:28px; height:28px; border-radius:50%; border:none; padding:0;
+    background:var(--border); align-items:center; justify-content:center;
+    cursor:pointer; color:var(--muted); font-size:15px; line-height:1;
+  }
   .mic-btn{
     position:absolute; right:6px; top:50%; transform:translateY(-50%);
     width:32px; height:32px; border-radius:50%; border:none; padding:0;
@@ -2006,7 +2012,8 @@ async function renderDashboard(){
 
   let html = `
     <div class="search-wrap">
-      <input id="dashSearchInput" placeholder="Search item, model, customer name or phone" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <input id="dashSearchInput" placeholder="Search item, model, customer, repair job or invoice #" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <button type="button" class="clear-btn" id="dashClearBtn" onclick="clearDashSearch()" style="display:${dashboardSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="dashMicBtn" onclick="startVoiceSearch('dash')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
@@ -2098,8 +2105,24 @@ function renderDashSearchResults(){
     return nameMatch || modelMatch;
   });
 
-  if(customerMatches.length===0 && itemMatches.length===0){
-    box.innerHTML = `<div class="empty" style="padding:20px">No item or customer found for "${dashboardSearch}".</div>`;
+  const repairMatches = repairJobs.filter(j=>{
+    const nameMatch = fuzzyTextMatch(j.customerName||'', q);
+    const modelMatch = fuzzyTextMatch(j.mobileModel||'', q);
+    const phoneDigits = (j.phone||'').replace(/\D/g,'');
+    const phoneMatch = qDigits.length>=3 && phoneDigits.includes(qDigits);
+    return nameMatch || modelMatch || phoneMatch;
+  }).sort((a,b)=> (a.status==='pending'?0:1) - (b.status==='pending'?0:1));
+
+  const invoiceMatches = (invoicesCache||[]).filter(inv=>{
+    const nameMatch = fuzzyTextMatch(inv.customerName||'', q);
+    const mobileDigits = (inv.customerMobile||'').replace(/\D/g,'');
+    const phoneMatch = qDigits.length>=3 && mobileDigits.includes(qDigits);
+    const invNumMatch = qDigits.length>=2 && String(inv.invoiceNumber).includes(qDigits);
+    return nameMatch || phoneMatch || invNumMatch;
+  }).slice(0,15);
+
+  if(customerMatches.length===0 && itemMatches.length===0 && repairMatches.length===0 && invoiceMatches.length===0){
+    box.innerHTML = `<div class="empty" style="padding:20px">No results found for "${dashboardSearch}".</div>`;
     return;
   }
 
@@ -2126,14 +2149,57 @@ function renderDashSearchResults(){
           </div>
           <span class="badge ${badgeClass}">${badgeText}</span>
         </div>
-        <button class="secondary" style="width:100%; margin-top:8px; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="primary" style="flex:1; font-size:12.5px; padding:8px;" ${i.qty===0?'disabled':''} onclick="openSaleModal('${i.id}')">${i.qty===0?'Out of Stock':'💰 Sell'}</button>
+          <button class="secondary" style="flex:1; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
+        </div>
       </div>`;
     }).join('') + '</div>';
   }
 
+  if(repairMatches.length>0){
+    html += `<div class="section-title">Repair Jobs</div><div class="card">` + repairMatches.map(j=>{
+      const estimate = j.estimateCharges||j.charges||0;
+      return `<div style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="${j.status==='pending' ? `openDeliverRepairModal('${j.id}')` : (j.invoiceNumber ? `openInvoiceDetailModal(${j.invoiceNumber})` : `switchView('repairJobs')`)}">
+        <div class="item-row">
+          <div class="item-info">
+            <div class="item-name">${j.mobileModel}</div>
+            <div class="item-cat">${j.customerName}${j.phone?' · '+j.phone:''}</div>
+            <div class="item-prices">Promised: <b>${j.promisedDate}</b>${estimate>0?' · Est: '+fmtMoney(estimate):''}</div>
+          </div>
+          <span class="badge ${j.status==='completed'?'ok':'low'}">${j.status==='completed'?'Delivered':'Pending'}</span>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  if(invoiceMatches.length>0){
+    html += `<div class="section-title">Invoices</div><div class="card">` + invoiceMatches.map(inv=>`
+      <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="openInvoiceDetailModal(${inv.invoiceNumber})">
+        <div class="item-info">
+          <div class="item-name">#${String(inv.invoiceNumber).padStart(5,'0')} — ${inv.customerName||'Walk-in Customer'}</div>
+          <div class="item-cat">${inv.date}</div>
+        </div>
+        <span style="font-weight:600;">${fmtMoney(inv.grandTotal)}</span>
+      </div>`).join('') + '</div>';
+  }
+
   box.innerHTML = html;
 }
-function setDashSearch(v){ dashboardSearch = v; renderDashSearchResults(); }
+function setDashSearch(v){
+  dashboardSearch = v;
+  const clearBtn = document.getElementById('dashClearBtn');
+  if(clearBtn) clearBtn.style.display = v ? 'flex' : 'none';
+  renderDashSearchResults();
+}
+function clearDashSearch(){
+  dashboardSearch = '';
+  const input = document.getElementById('dashSearchInput');
+  if(input){ input.value=''; input.focus(); }
+  const clearBtn = document.getElementById('dashClearBtn');
+  if(clearBtn) clearBtn.style.display = 'none';
+  renderDashSearchResults();
+}
 function toggleSaleValue(){
   saleVisible = !saleVisible;
   const saleEl = document.getElementById('regSaleVal');
