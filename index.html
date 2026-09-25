@@ -79,6 +79,45 @@
     --text:#F6F0FF;
     --muted:#A79ABF;
   }
+  [data-theme="sunset"]{
+    --bg:#1A0D12;
+    --surface:#28131B;
+    --surface2:#3A1922;
+    --border:#5A2932;
+    --accent:#FF7A59;
+    --accent-dim:#B94E3B;
+    --accent-text:#2A0B06;
+    --green:#62E6A7;
+    --red:#FF5C72;
+    --text:#FFF2EC;
+    --muted:#C49A91;
+  }
+  [data-theme="emerald"]{
+    --bg:#061713;
+    --surface:#0C241D;
+    --surface2:#12372C;
+    --border:#245344;
+    --accent:#2FE6A6;
+    --accent-dim:#1D9870;
+    --accent-text:#032016;
+    --green:#73F2B2;
+    --red:#FF6378;
+    --text:#E9FFF7;
+    --muted:#83B7A7;
+  }
+  [data-theme="neon"]{
+    --bg:#0A0A18;
+    --surface:#13132A;
+    --surface2:#1D1D3B;
+    --border:#363663;
+    --accent:#FF4FD8;
+    --accent-dim:#A42D8E;
+    --accent-text:#26001F;
+    --green:#4DFFD2;
+    --red:#FF5B73;
+    --text:#F7F3FF;
+    --muted:#AAA4C6;
+  }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html,body{height:100%;}
   body{
@@ -489,7 +528,7 @@
   }
   .theme-picker{
     display:grid !important;
-    grid-template-columns:repeat(5,minmax(0,1fr));
+    grid-template-columns:repeat(4,minmax(0,1fr));
     gap:7px !important;
     margin-bottom:14px !important;
   }
@@ -527,6 +566,9 @@
   .theme-slate{--theme-preview:#5B9BD5;}
   .theme-ocean{--theme-preview:#35D6C7;}
   .theme-royal{--theme-preview:#B88CFF;}
+  .theme-sunset{--theme-preview:#FF7A59;}
+  .theme-emerald{--theme-preview:#2FE6A6;}
+  .theme-neon{--theme-preview:#FF4FD8;}
   @media (min-width:900px){
     #app{
       box-shadow:0 28px 80px rgba(0,0,0,.38);
@@ -5821,6 +5863,9 @@ function openSettingsModal(){
         <button class="secondary theme-btn theme-slate ${currentTheme==='slate'?'selected':''}" onclick="selectTheme('slate')">Slate</button>
         <button class="secondary theme-btn theme-ocean ${currentTheme==='ocean'?'selected':''}" onclick="selectTheme('ocean')">Ocean</button>
         <button class="secondary theme-btn theme-royal ${currentTheme==='royal'?'selected':''}" onclick="selectTheme('royal')">Royal</button>
+        <button class="secondary theme-btn theme-sunset ${currentTheme==='sunset'?'selected':''}" onclick="selectTheme('sunset')">Sunset</button>
+        <button class="secondary theme-btn theme-emerald ${currentTheme==='emerald'?'selected':''}" onclick="selectTheme('emerald')">Emerald</button>
+        <button class="secondary theme-btn theme-neon ${currentTheme==='neon'?'selected':''}" onclick="selectTheme('neon')">Neon</button>
       </div>
       <p style="color:var(--muted); font-size:12px; margin-top:-8px; margin-bottom:14px; line-height:1.6;">
         This is just a look-and-feel preference for this device — it doesn't affect your data.
