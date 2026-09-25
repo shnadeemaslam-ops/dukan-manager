@@ -533,17 +533,6 @@
     *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important;}
   }
 
-
-/* Trend chart interaction */
-.weekly-trend-wrap{position:relative;width:100%;user-select:none;-webkit-tap-highlight-color:transparent;cursor:pointer}
-.trend-reveal-hint{text-align:right;font-size:9.5px;color:var(--muted);margin:0 3px 2px;opacity:.78}
-.trend-hidden-amounts{opacity:0;transition:opacity .18s}
-.weekly-trend-wrap.trend-amounts-visible .trend-hidden-amounts{opacity:1}
-.weekly-trend-wrap.trend-amounts-visible .trend-bar-group rect:not(.trend-hit){filter:brightness(1.06)}
-.trend-amount-legend{display:flex;justify-content:center;gap:20px;margin-top:2px;font-size:11px;color:var(--muted)}
-.trend-amount-legend span{display:flex;align-items:center;gap:5px}
-.trend-amount-legend i{display:inline-block;width:9px;height:9px;border-radius:3px}
-@media (max-width:520px){.trend-reveal-hint{font-size:9px}.trend-amount-legend{font-size:10px;gap:16px}}.trend-detail-value{font-size:14px}}
 </style>
 </head>
 <body>
@@ -4206,69 +4195,39 @@ function pctChangeText(cur, prev){
   if(pct<0) return {text:`▼ ${Math.abs(pct)}%`, color:'var(--red)'};
   return {text:'– 0%', color:'var(--muted)'};
 }
-function selectTrendDay(index, date, sale, profit){
-  // Weekly trend uses one clean reveal state: tap anywhere on the graph/amount area
-  // to reveal all 7 days; tap again to hide all amounts.
-  const root = document.getElementById('weeklyTrendChart');
-  if(!root) return;
-  const revealed = root.dataset.amountsVisible === '1';
-  root.dataset.amountsVisible = revealed ? '0' : '1';
-  root.classList.toggle('trend-amounts-visible', !revealed);
-  const hint = root.querySelector('.trend-reveal-hint');
-  if(hint) hint.textContent = revealed ? 'Tap graph to reveal amounts' : 'Tap graph to hide amounts';
-}
 function renderTrendChartSVG(dateTotals){
   const n = dateTotals.length;
   if(n===0) return '<div class="empty" style="padding:20px;">No data</div>';
-
-  // For the weekly report, always render all 7 days in one view — no horizontal scroll.
-  const isSevenDay = n === 7;
   const maxVal = Math.max(1, ...dateTotals.map(d=>Math.max(d.sale, d.profit)));
-  const viewW = isSevenDay ? 700 : Math.max(700, n*42+20);
-  const chartH = isSevenDay ? 150 : 110;
-  const left = isSevenDay ? 28 : 6;
-  const right = isSevenDay ? 18 : 10;
-  const usableW = viewW-left-right;
-  const step = usableW / n;
-  const barW = isSevenDay ? Math.min(28, step*0.28) : (n>15 ? 8 : (n>7 ? 16 : 28));
-  const groupW = barW*2 + 4;
-  const labelY = chartH + 18;
-  const saleY = chartH + 42;
-  const profitY = chartH + 59;
-  const bottomH = isSevenDay ? 72 : 28;
-  let groups='', labels='', amounts='';
-
+  const barW = n>15 ? 8 : (n>7 ? 16 : 28);
+  const gap = n>15 ? 5 : (n>7 ? 10 : 16);
+  const chartH = 110;
+  const groupW = barW*2 + 3;
+  const step = groupW + gap;
+  const totalW = n*step + 10;
+  const labelEvery = n>15 ? Math.ceil(n/8) : 1;
+  let bars='', profitBars='', labels='';
   dateTotals.forEach((d,i)=>{
-    const center = left + step*(i+0.5);
-    const x = center - groupW/2;
+    const x = 6 + i*step;
     const saleH = Math.max(d.sale>0?2:0, Math.round((d.sale/maxVal)*chartH));
     const profitH = Math.max(d.profit>0?2:0, Math.round((d.profit/maxVal)*chartH));
-    groups += `<g class="trend-bar-group" data-index="${i}" onclick="event.stopPropagation(); selectTrendDay(${i},'${d.date}',${d.sale},${d.profit})" style="cursor:pointer; transition:opacity .18s;" role="button" aria-label="${d.date}: Sale ${fmtMoney(d.sale)}, Profit ${fmtMoney(d.profit)}">
-      <rect class="trend-hit" x="${center-step*.47}" y="0" width="${step*.94}" height="${chartH+bottomH}" rx="8" fill="transparent"></rect>
-      <rect x="${x}" y="${chartH-saleH}" width="${barW}" height="${saleH}" rx="4" style="fill:var(--accent); transition:filter .18s, transform .18s;"></rect>
-      <rect x="${x+barW+4}" y="${chartH-profitH}" width="${barW}" height="${profitH}" rx="4" style="fill:var(--green); transition:filter .18s, transform .18s;"></rect>
-    </g>`;
-    const lbl = n===7 ? d.date.slice(5).replace('-','/') : (n>7 ? String(parseInt(d.date.slice(8,10),10)) : d.date.slice(5).replace('-','/'));
-    labels += `<text x="${center}" y="${labelY}" font-size="11" style="fill:var(--muted);font-weight:600" text-anchor="middle">${lbl}</text>`;
-    amounts += `<g class="trend-hidden-amounts">
-      <text x="${center}" y="${saleY}" font-size="10" style="fill:var(--accent);font-weight:700" text-anchor="middle">${fmtMoney(d.sale)}</text>
-      <text x="${center}" y="${profitY}" font-size="10" style="fill:var(--green);font-weight:700" text-anchor="middle">${fmtMoney(d.profit)}</text>
-    </g>`;
+    bars += `<rect x="${x}" y="${chartH-saleH}" width="${barW}" height="${saleH}" rx="2" style="fill:var(--accent)"></rect>`;
+    profitBars += `<rect x="${x+barW+3}" y="${chartH-profitH}" width="${barW}" height="${profitH}" rx="2" style="fill:var(--green)"></rect>`;
+    if(i%labelEvery===0 || i===n-1){
+      const lbl = n>7 ? String(parseInt(d.date.slice(8,10),10)) : d.date.slice(5).replace('-','/');
+      labels += `<text x="${x+groupW/2}" y="${chartH+15}" font-size="9" style="fill:var(--muted)" text-anchor="middle">${lbl}</text>`;
+    }
   });
-
-  const height = chartH + bottomH;
-  return `<div id="weeklyTrendChart" data-amounts-visible="0" class="weekly-trend-wrap" onclick="selectTrendDay(-1,'',0,0)">
-    <div class="trend-reveal-hint">Tap graph to reveal amounts</div>
-    <svg viewBox="0 0 ${viewW} ${height}" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" style="display:block; overflow:visible;">
-      <line x1="${left-8}" y1="${chartH}" x2="${viewW-right}" y2="${chartH}" style="stroke:var(--border); stroke-width:1; opacity:.85;"></line>
-      ${groups}
+  return `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+    <svg width="${totalW}" height="${chartH+28}" style="display:block; margin:0 auto; min-width:100%;">
+      ${bars}
+      <g id="trendProfitBars" style="filter:${profitVisible?'none':'blur(6px)'}; transition:filter .2s;">${profitBars}</g>
       ${labels}
-      ${amounts}
     </svg>
-    <div class="trend-amount-legend">
-      <span><i style="background:var(--accent)"></i>Sale</span>
-      <span><i style="background:var(--green)"></i>Profit</span>
-    </div>
+  </div>
+  <div style="display:flex; justify-content:center; gap:18px; margin-top:8px; font-size:11px; color:var(--muted);">
+    <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:2px; background:var(--accent); display:inline-block;"></span>Sale</div>
+    <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:2px; background:var(--green); display:inline-block;"></span>Profit</div>
   </div>`;
 }
 async function renderTrendSection(sales, totalSale, totalProfit){
