@@ -2251,6 +2251,7 @@ async function renderInventory(){
 
   let html = `<div class="search-wrap">
       <input id="invSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${invSearch}" oninput="setInvSearch(this.value)">
+      <button type="button" class="clear-btn" id="invClearBtn" onclick="clearInvSearch()" style="display:${invSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="invMicBtn" onclick="startVoiceSearch('inv')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
@@ -2328,6 +2329,7 @@ function setInvFilter(c){ invFilter = c; invPartTypeFilter='all'; invSubTypeFilt
 function setInvPartFilter(p){ invPartTypeFilter = p; invSubTypeFilter='all'; renderInventory(); }
 function setInvSubFilter(p){ invSubTypeFilter = p; renderInventory(); }
 function setInvSearch(v){ invSearch = v; renderInventory(); }
+function clearInvSearch(){ invSearch = ''; renderInventory(); }
 let activeRecognition = null;
 function startVoiceSearch(target){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -3053,6 +3055,7 @@ function renderItemSale(){
   let html = `
     <div class="search-wrap">
       <input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${saleItemSearch}" oninput="setSaleSearch(this.value)">
+      <button type="button" class="clear-btn" id="saleClearBtn" onclick="clearSaleSearch()" style="display:${saleItemSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="saleMicBtn" onclick="startVoiceSearch('sale')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
@@ -3360,6 +3363,7 @@ async function checkoutBill(action){
 function setSalePartFilter(p){ salePartTypeFilter = p; saleSubTypeFilter = 'all'; renderItemSale(); }
 function setSaleSubFilter(p){ saleSubTypeFilter = p; renderItemSale(); }
 function setSaleSearch(v){ saleItemSearch = v; renderItemSale(); }
+function clearSaleSearch(){ saleItemSearch = ''; renderItemSale(); }
 
 function renderServiceForm(){
   svcPaymentMethod = 'cash';
@@ -4103,9 +4107,9 @@ function reportSearchBarHtml(){
   return `
     <div class="card" style="margin-bottom:14px;">
       <label>🔍 Search Old Sales (by item/service name or customer)</label>
-      <div style="display:flex; gap:8px;">
-        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${reportSearchQuery}" oninput="setReportSearch(this.value)" style="margin-bottom:0; flex:1;">
-        ${reportSearchQuery ? `<button type="button" onclick="clearReportSearch()" style="padding:0 16px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;">✕</button>` : ''}
+      <div class="search-wrap">
+        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${reportSearchQuery}" oninput="setReportSearch(this.value)" style="padding-right:44px;">
+        <button type="button" class="clear-btn" id="reportClearBtn" onclick="clearReportSearch()" style="right:6px; display:${reportSearchQuery?'flex':'none'}">✕</button>
       </div>
     </div>`;
 }
