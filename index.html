@@ -533,6 +533,17 @@
     *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important;}
   }
 
+
+/* Trend chart interaction */
+.trend-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.trend-detail-item{padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--card);min-width:0}
+.trend-detail-label{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.trend-detail-value{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--text);white-space:nowrap}
+.trend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}
+.sale-dot{background:var(--accent)}
+.profit-dot{background:var(--green)}
+.trend-bar-group:hover rect:not(:last-child){filter:brightness(1.08)}
+@media (max-width:520px){.trend-detail-grid{grid-template-columns:1fr}.trend-detail-value{font-size:14px}}
 </style>
 </head>
 <body>
@@ -4195,6 +4206,38 @@ function pctChangeText(cur, prev){
   if(pct<0) return {text:`▼ ${Math.abs(pct)}%`, color:'var(--red)'};
   return {text:'– 0%', color:'var(--muted)'};
 }
+function selectTrendDay(index, date, sale, profit){
+  const panel = document.getElementById('trendDetailPanel');
+  if(!panel) return;
+  const already = panel.dataset.selectedIndex === String(index) && panel.style.display !== 'none';
+  document.querySelectorAll('.trend-bar-group').forEach((g,i)=>{
+    g.style.opacity = (!already && i!==index) ? '.38' : '1';
+  });
+  if(already){
+    panel.style.display = 'none';
+    panel.dataset.selectedIndex = '';
+    return;
+  }
+  panel.dataset.selectedIndex = String(index);
+  panel.style.display = 'block';
+  const d = new Date(date+'T00:00:00');
+  const label = d.toLocaleDateString(undefined,{day:'2-digit',month:'short',year:'numeric'});
+  panel.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+      <div style="font-weight:700; color:var(--text);">${label}</div>
+      <div style="font-size:10px; color:var(--muted);">Tap same day to hide</div>
+    </div>
+    <div class="trend-detail-grid">
+      <div class="trend-detail-item sale-detail">
+        <div class="trend-detail-label"><span class="trend-dot sale-dot"></span>Sale</div>
+        <div class="trend-detail-value">${fmtMoney(sale)}</div>
+      </div>
+      <div class="trend-detail-item profit-detail">
+        <div class="trend-detail-label"><span class="trend-dot profit-dot"></span>Profit</div>
+        <div class="trend-detail-value" style="color:var(--green);">${fmtMoney(profit)}</div>
+      </div>
+    </div>`;
+}
 function renderTrendChartSVG(dateTotals){
   const n = dateTotals.length;
   if(n===0) return '<div class="empty" style="padding:20px;">No data</div>';
@@ -4206,28 +4249,32 @@ function renderTrendChartSVG(dateTotals){
   const step = groupW + gap;
   const totalW = n*step + 10;
   const labelEvery = n>15 ? Math.ceil(n/8) : 1;
-  let bars='', profitBars='', labels='';
+  let groups='', labels='';
   dateTotals.forEach((d,i)=>{
     const x = 6 + i*step;
     const saleH = Math.max(d.sale>0?2:0, Math.round((d.sale/maxVal)*chartH));
     const profitH = Math.max(d.profit>0?2:0, Math.round((d.profit/maxVal)*chartH));
-    bars += `<rect x="${x}" y="${chartH-saleH}" width="${barW}" height="${saleH}" rx="2" style="fill:var(--accent)"></rect>`;
-    profitBars += `<rect x="${x+barW+3}" y="${chartH-profitH}" width="${barW}" height="${profitH}" rx="2" style="fill:var(--green)"></rect>`;
+    groups += `<g class="trend-bar-group" data-index="${i}" onclick="selectTrendDay(${i},'${d.date}',${d.sale},${d.profit})" style="cursor:pointer; transition:opacity .18s;" role="button" aria-label="${d.date}: Sale ${fmtMoney(d.sale)}, Profit ${fmtMoney(d.profit)}">
+      <rect x="${x}" y="${chartH-saleH}" width="${barW}" height="${saleH}" rx="3" style="fill:var(--accent); transition:filter .18s, transform .18s;"></rect>
+      <rect x="${x+barW+3}" y="${chartH-profitH}" width="${barW}" height="${profitH}" rx="3" style="fill:var(--green); transition:filter .18s, transform .18s;"></rect>
+      <rect x="${x-4}" y="0" width="${groupW+8}" height="${chartH+20}" rx="7" fill="transparent"></rect>
+    </g>`;
     if(i%labelEvery===0 || i===n-1){
       const lbl = n>7 ? String(parseInt(d.date.slice(8,10),10)) : d.date.slice(5).replace('-','/');
       labels += `<text x="${x+groupW/2}" y="${chartH+15}" font-size="9" style="fill:var(--muted)" text-anchor="middle">${lbl}</text>`;
     }
   });
-  return `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
-    <svg width="${totalW}" height="${chartH+28}" style="display:block; margin:0 auto; min-width:100%;">
-      ${bars}
-      <g id="trendProfitBars" style="filter:${profitVisible?'none':'blur(6px)'}; transition:filter .2s;">${profitBars}</g>
+  return `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px;">
+    <svg width="${totalW}" height="${chartH+28}" style="display:block; margin:0 auto; min-width:100%; overflow:visible;">
+      <line x1="4" y1="${chartH}" x2="${Math.max(totalW-4,10)}" y2="${chartH}" style="stroke:var(--border); stroke-width:1; opacity:.8;"></line>
+      ${groups}
       ${labels}
     </svg>
   </div>
-  <div style="display:flex; justify-content:center; gap:18px; margin-top:8px; font-size:11px; color:var(--muted);">
-    <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:2px; background:var(--accent); display:inline-block;"></span>Sale</div>
-    <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:2px; background:var(--green); display:inline-block;"></span>Profit</div>
+  <div id="trendDetailPanel" data-selected-index="" style="display:none; margin:10px 6px 0; padding:12px 13px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:0 8px 24px rgba(0,0,0,.12);"></div>
+  <div style="display:flex; justify-content:center; gap:18px; margin-top:9px; font-size:11px; color:var(--muted);">
+    <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:var(--accent); display:inline-block;"></span>Sale</div>
+    <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:var(--green); display:inline-block;"></span>Profit</div>
   </div>`;
 }
 async function renderTrendSection(sales, totalSale, totalProfit){
