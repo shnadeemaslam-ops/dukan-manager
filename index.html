@@ -536,10 +536,10 @@
 
 /* Trend chart interaction */
 .trend-reveal-hint{text-align:right;font-size:9.5px;color:var(--muted);margin:0 3px 2px;opacity:.78}
-@media (max-width:520px){.trend-reveal-hint{font-size:9px}.trend-amount-legend{font-size:10px;gap:16px}}.trend-detail-value{font-size:14px}}
+@media (max-width:520px){.trend-reveal-hint{font-size:9px}.trend-amount-legend{font-size:10px;gap:16px}.trend-detail-value{font-size:14px}}
 
 /* Weekly 7-day daily detail: collapsed by default, expands on tap. */
-.weekly-daily-detail{margin:12px 0 14px;border:1px solid var(--border);border-radius:18px;background:var(--card);overflow:hidden;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .2s,box-shadow .2s}
+.weekly-daily-detail{display:block;margin:12px 0 14px;border:1px solid var(--border);border-radius:18px;background:var(--card);overflow:hidden;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .2s,box-shadow .2s}
 .weekly-daily-detail:hover{border-color:var(--accent)}
 .weekly-detail-header{display:flex;align-items:center;justify-content:space-between;padding:15px 16px}
 .weekly-detail-title{font-size:15px;font-weight:700;color:var(--text)}
@@ -568,6 +568,34 @@
 .metric-amount{width:76px;text-align:right;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;flex:0 0 76px}
 .sale-line .metric-amount{color:var(--accent)}.profit-line .metric-amount{color:var(--green)}
 @media(max-width:520px){.weekly-detail-header{padding:13px 14px}.weekly-detail-summary{font-size:10px}.weekly-detail-date{width:72px;flex-basis:72px}.metric-label{width:34px;flex-basis:34px}.metric-amount{width:67px;flex-basis:67px;font-size:9.5px}.weekly-detail-day{gap:7px}}
+
+/* Monthly full-month daily detail: collapsed by default, expands on tap. */
+.monthly-daily-detail{display:block;margin:12px 0 14px;border:1px solid var(--border);border-radius:18px;background:var(--card);overflow:hidden;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .2s,box-shadow .2s}
+.monthly-daily-detail:hover{border-color:var(--accent)}
+.monthly-detail-header{display:flex;align-items:center;justify-content:space-between;padding:15px 16px}
+.monthly-detail-title{font-size:15px;font-weight:700;color:var(--text)}
+.monthly-detail-hint{margin-top:3px;font-size:11px;color:var(--muted)}
+.monthly-detail-chevron{font-size:20px;color:var(--muted);transition:transform .2s}
+.monthly-daily-detail.open .monthly-detail-chevron{transform:rotate(180deg);color:var(--accent)}
+.monthly-detail-content{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
+.monthly-daily-detail.open .monthly-detail-content{display:block;animation:monthlyDetailIn .18s ease-out}
+@keyframes monthlyDetailIn{from{opacity:.2;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+.monthly-detail-summary{display:flex;justify-content:space-between;gap:12px;padding:12px 2px 10px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:8px;flex-wrap:wrap}
+.monthly-detail-day{padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--border) 65%,transparent);display:flex;gap:10px;align-items:center}
+.monthly-detail-day:last-child{border-bottom:0}
+.monthly-detail-date{width:62px;flex:0 0 62px;color:var(--text);display:flex;align-items:baseline;gap:5px}
+.monthly-detail-date b{font-size:12px}.monthly-detail-date span{font-size:10px;color:var(--muted)}
+.monthly-detail-metrics{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.monthly-detail-line{display:flex;align-items:center;gap:7px;min-width:0}
+.monthly-detail-label{width:38px;font-size:10px;font-weight:700;flex:0 0 38px}
+.monthly-sale-line .monthly-detail-label{color:var(--accent)}.monthly-profit-line .monthly-detail-label{color:var(--green)}
+.monthly-track{height:7px;flex:1;min-width:30px;border-radius:999px;background:color-mix(in srgb,var(--border) 70%,transparent);overflow:hidden}
+.monthly-fill{height:100%;border-radius:999px}
+.monthly-sale-line .monthly-fill{background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 34%,transparent)}
+.monthly-profit-line .monthly-fill{background:var(--green);box-shadow:0 0 7px color-mix(in srgb,var(--green) 28%,transparent)}
+.monthly-detail-amount{width:78px;text-align:right;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;flex:0 0 78px}
+.monthly-sale-line .monthly-detail-amount{color:var(--accent)}.monthly-profit-line .monthly-detail-amount{color:var(--green)}
+@media(max-width:520px){.monthly-detail-header{padding:13px 14px}.monthly-detail-summary{font-size:10px}.monthly-detail-date{width:54px;flex-basis:54px}.monthly-detail-label{width:34px;flex-basis:34px}.monthly-detail-amount{width:68px;flex-basis:68px;font-size:9px}.monthly-detail-day{gap:6px}}
 </style>
 </head>
 <body>
@@ -4271,7 +4299,7 @@ function toggleWeeklyDailyDetail(){
   const open=root.classList.toggle('open');
   root.setAttribute('aria-expanded', open ? 'true' : 'false');
   const hint=root.querySelector('.weekly-detail-hint');
-  if(hint) hint.textContent=open ? 'Tap to hide daily details' : 'Tap to show daily Sale & Profit';
+  if(hint) hint.textContent=open ? 'Tap to hide all daily amounts' : 'Tap to reveal all 7 days • Sale + Profit amounts';
 }
 function renderWeeklyDailyDetail(dateTotals){
   const maxVal=Math.max(1,...dateTotals.map(d=>Math.max(d.sale,d.profit)));
@@ -4292,11 +4320,50 @@ function renderWeeklyDailyDetail(dateTotals){
   const totalProfit=dateTotals.reduce((a,d)=>a+d.profit,0);
   return `<div id="weeklyDailyDetail" class="weekly-daily-detail" aria-expanded="false" onclick="toggleWeeklyDailyDetail()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWeeklyDailyDetail();}">
     <div class="weekly-detail-header">
-      <div><div class="weekly-detail-title">7-Day Daily Detail</div><div class="weekly-detail-hint">Tap to show daily Sale & Profit</div></div>
+      <div><div class="weekly-detail-title">7-Day Daily Sale & Profit</div><div class="weekly-detail-hint">Tap to reveal all 7 days • Sale + Profit amounts</div></div>
       <div class="weekly-detail-chevron">⌄</div>
     </div>
     <div class="weekly-detail-content">
       <div class="weekly-detail-summary"><span>7-Day Sale <b class="sale-text">${fmtMoney(totalSale)}</b></span><span>7-Day Profit <b class="profit-text">${fmtMoney(totalProfit)}</b></span></div>
+      ${rows}
+    </div>
+  </div>`;
+}
+
+
+function toggleMonthlyDailyDetail(){
+  const root=document.getElementById('monthlyDailyDetail');
+  if(!root) return;
+  const open=root.classList.toggle('open');
+  root.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const hint=root.querySelector('.monthly-detail-hint');
+  if(hint) hint.textContent=open ? 'Tap to hide all daily amounts' : 'Tap to reveal the complete month • Sale + Profit';
+}
+function renderMonthlyDailyDetail(dateTotals){
+  const maxVal=Math.max(1,...dateTotals.map(d=>Math.max(d.sale,d.profit)));
+  const rows=dateTotals.map(d=>{
+    const salePct=d.sale>0 ? Math.max(2,(d.sale/maxVal)*100) : 0;
+    const profitPct=d.profit>0 ? Math.max(2,(d.profit/maxVal)*100) : 0;
+    const dayNum=parseInt(d.date.slice(8,10),10);
+    const weekday=new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+    return `<div class="monthly-detail-day">
+      <div class="monthly-detail-date"><b>${dayNum}</b><span>${weekday}</span></div>
+      <div class="monthly-detail-metrics">
+        <div class="monthly-detail-line monthly-sale-line"><span class="monthly-detail-label">Sale</span><div class="monthly-track"><div class="monthly-fill" style="width:${salePct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.sale)}</span></div>
+        <div class="monthly-detail-line monthly-profit-line"><span class="monthly-detail-label">Profit</span><div class="monthly-track"><div class="monthly-fill" style="width:${profitPct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.profit)}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+  const totalSale=dateTotals.reduce((a,d)=>a+d.sale,0);
+  const totalProfit=dateTotals.reduce((a,d)=>a+d.profit,0);
+  const days=dateTotals.length;
+  return `<div id="monthlyDailyDetail" class="monthly-daily-detail" aria-expanded="false" onclick="toggleMonthlyDailyDetail()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMonthlyDailyDetail();}">
+    <div class="monthly-detail-header">
+      <div><div class="monthly-detail-title">${days}-Day Daily Sale & Profit</div><div class="monthly-detail-hint">Tap to reveal the complete month • Sale + Profit</div></div>
+      <div class="monthly-detail-chevron">⌄</div>
+    </div>
+    <div class="monthly-detail-content">
+      <div class="monthly-detail-summary"><span>Monthly Sale <b class="sale-text">${fmtMoney(totalSale)}</b></span><span>Monthly Profit <b class="profit-text">${fmtMoney(totalProfit)}</b></span></div>
       ${rows}
     </div>
   </div>`;
@@ -4342,12 +4409,14 @@ async function renderTrendSection(sales, totalSale, totalProfit){
     }
   }
   const weeklyDetailHtml = reportPeriod==='weekly' ? renderWeeklyDailyDetail(dateTotals) : '';
+  const monthlyDetailHtml = reportPeriod==='monthly' ? renderMonthlyDailyDetail(dateTotals) : '';
   return `
     <div class="section-title">Sales & Profit Trend</div>
     <div class="card" style="padding:14px 8px 10px;">
       ${renderTrendChartSVG(dateTotals)}
     </div>
     ${weeklyDetailHtml}
+    ${monthlyDetailHtml}
     <div class="card">
       <div class="sale-list-item"><div>Avg Daily Sale${avgLabelSuffix}</div><div class="t" style="font-weight:600; font-family:'JetBrains Mono',monospace;">${fmtMoney(avgSale)}</div></div>
       <div class="sale-list-item"><div>Avg Daily Profit${avgLabelSuffix}</div><div class="t profit-val" data-amt="${avgProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(avgProfit):'••••'}</div></div>
