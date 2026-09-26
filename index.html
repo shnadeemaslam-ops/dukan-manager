@@ -580,6 +580,7 @@
 .monthly-detail-content{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
 .monthly-daily-detail.open .monthly-detail-content{display:block;animation:monthlyDetailIn .18s ease-out}
 @keyframes monthlyDetailIn{from{opacity:.2;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+.monthly-sort-tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 0 9px;margin:0 0 2px;border-bottom:1px solid var(--border);scrollbar-width:none}.monthly-sort-tabs::-webkit-scrollbar{display:none}.monthly-sort-tab{appearance:none;border:1px solid var(--border);background:color-mix(in srgb,var(--card) 82%,var(--bg));color:var(--muted);border-radius:10px;padding:8px 10px;font:600 10px/1.1 inherit;white-space:nowrap;min-height:36px;cursor:pointer;transition:.18s}.monthly-sort-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 10px color-mix(in srgb,var(--accent) 22%,transparent)}.monthly-sort-tab:active{transform:scale(.98)}
 .monthly-detail-summary{display:flex;justify-content:space-between;gap:12px;padding:12px 2px 10px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:8px;flex-wrap:wrap}
 .monthly-detail-day{padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--border) 65%,transparent);display:flex;gap:10px;align-items:center}
 .monthly-detail-day:last-child{border-bottom:0}
@@ -4340,33 +4341,87 @@ function toggleMonthlyDailyDetail(){
   if(hint) hint.textContent=open ? 'Tap to hide all daily amounts' : 'Tap to reveal the complete month • Sale + Profit';
 }
 function renderMonthlyDailyDetail(dateTotals){
-  const maxVal=Math.max(1,...dateTotals.map(d=>Math.max(d.sale,d.profit)));
-  const rows=dateTotals.map(d=>{
-    const salePct=d.sale>0 ? Math.max(2,(d.sale/maxVal)*100) : 0;
-    const profitPct=d.profit>0 ? Math.max(2,(d.profit/maxVal)*100) : 0;
-    const dayNum=parseInt(d.date.slice(8,10),10);
-    const weekday=new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
-    return `<div class="monthly-detail-day">
-      <div class="monthly-detail-date"><b>${dayNum}</b><span>${weekday}</span></div>
-      <div class="monthly-detail-metrics">
-        <div class="monthly-detail-line monthly-sale-line"><span class="monthly-detail-label">Sale</span><div class="monthly-track"><div class="monthly-fill" style="width:${salePct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.sale)}</span></div>
-        <div class="monthly-detail-line monthly-profit-line"><span class="monthly-detail-label">Profit</span><div class="monthly-track"><div class="monthly-fill" style="width:${profitPct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.profit)}</span></div>
-      </div>
-    </div>`;
-  }).join('');
   const totalSale=dateTotals.reduce((a,d)=>a+d.sale,0);
   const totalProfit=dateTotals.reduce((a,d)=>a+d.profit,0);
   const days=dateTotals.length;
-  return `<div id="monthlyDailyDetail" class="monthly-daily-detail" aria-expanded="false" onclick="toggleMonthlyDailyDetail()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMonthlyDailyDetail();}">
-    <div class="monthly-detail-header">
+  const baseRows = dateTotals.map(d=>({ ...d }));
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const renderRows = (rows) => {
+    const maxVal=Math.max(1,...rows.map(d=>Math.max(d.sale,d.profit)));
+    return rows.map(d=>{
+      const salePct=d.sale>0 ? Math.max(2,(d.sale/maxVal)*100) : 0;
+      const profitPct=d.profit>0 ? Math.max(2,(d.profit/maxVal)*100) : 0;
+      const dayNum=parseInt(d.date.slice(8,10),10);
+      const weekday=new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+      return `<div class="monthly-detail-day">
+        <div class="monthly-detail-date"><b>${dayNum}</b><span>${weekday}</span></div>
+        <div class="monthly-detail-metrics">
+          <div class="monthly-detail-line monthly-sale-line"><span class="monthly-detail-label">Sale</span><div class="monthly-track"><div class="monthly-fill" style="width:${salePct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.sale)}</span></div>
+          <div class="monthly-detail-line monthly-profit-line"><span class="monthly-detail-label">Profit</span><div class="monthly-track"><div class="monthly-fill" style="width:${profitPct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.profit)}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  };
+  const tabs = `
+    <div class="monthly-sort-tabs" role="tablist" aria-label="Monthly daily views">
+      <button type="button" class="monthly-sort-tab active" role="tab" aria-selected="true" data-monthly-sort="normal">Normal</button>
+      <button type="button" class="monthly-sort-tab" role="tab" aria-selected="false" data-monthly-sort="profit-desc">Profit High → Low</button>
+      <button type="button" class="monthly-sort-tab" role="tab" aria-selected="false" data-monthly-sort="sale-desc">Sale High → Low</button>
+      <button type="button" class="monthly-sort-tab" role="tab" aria-selected="false" data-monthly-sort="profit-asc">Profit Low → High</button>
+    </div>`;
+  const content = `<div class="monthly-detail-summary"><span>Monthly Sale <b class="sale-text">${fmtMoney(totalSale)}</b></span><span>Monthly Profit <b class="profit-text">${fmtMoney(totalProfit)}</b></span></div><div id="monthlyDetailRows">${renderRows(baseRows)}</div>`;
+  return `<div id="monthlyDailyDetail" class="monthly-daily-detail" aria-expanded="false">
+    <button type="button" class="monthly-detail-header monthly-detail-toggle" aria-expanded="false">
       <div><div class="monthly-detail-title">${days}-Day Daily Sale & Profit</div><div class="monthly-detail-hint">Tap to reveal the complete month • Sale + Profit</div></div>
       <div class="monthly-detail-chevron">⌄</div>
-    </div>
+    </button>
     <div class="monthly-detail-content">
-      <div class="monthly-detail-summary"><span>Monthly Sale <b class="sale-text">${fmtMoney(totalSale)}</b></span><span>Monthly Profit <b class="profit-text">${fmtMoney(totalProfit)}</b></span></div>
-      ${rows}
+      ${tabs}
+      ${content}
     </div>
   </div>`;
+}
+
+
+function initMonthlyDailyDetail(root){
+  if(!root || root.dataset.bound==='1') return;
+  root.dataset.bound='1';
+  const toggle=root.querySelector('.monthly-detail-toggle');
+  const content=root.querySelector('.monthly-detail-content');
+  const rowsHost=root.querySelector('#monthlyDetailRows');
+  if(!toggle || !content || !rowsHost) return;
+  const allRows = Array.from(root.querySelectorAll('.monthly-detail-day')).map(()=>null);
+  const rawRows = window.__hmMonthlyDetailRows || [];
+  const renderSortedRows = (rows) => {
+    const maxVal=Math.max(1,...rows.map(d=>Math.max(d.sale,d.profit)));
+    rowsHost.innerHTML=rows.map(d=>{
+      const salePct=d.sale>0 ? Math.max(2,(d.sale/maxVal)*100) : 0;
+      const profitPct=d.profit>0 ? Math.max(2,(d.profit/maxVal)*100) : 0;
+      const dayNum=parseInt(d.date.slice(8,10),10);
+      const weekday=new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+      return `<div class="monthly-detail-day"><div class="monthly-detail-date"><b>${dayNum}</b><span>${weekday}</span></div><div class="monthly-detail-metrics"><div class="monthly-detail-line monthly-sale-line"><span class="monthly-detail-label">Sale</span><div class="monthly-track"><div class="monthly-fill" style="width:${salePct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.sale)}</span></div><div class="monthly-detail-line monthly-profit-line"><span class="monthly-detail-label">Profit</span><div class="monthly-track"><div class="monthly-fill" style="width:${profitPct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.profit)}</span></div></div></div>`;
+    }).join('');
+  };
+  toggle.addEventListener('click',()=>{
+    const open=!root.classList.contains('open');
+    root.classList.toggle('open',open);
+    root.setAttribute('aria-expanded',open?'true':'false');
+    toggle.setAttribute('aria-expanded',open?'true':'false');
+    const hint=root.querySelector('.monthly-detail-hint');
+    if(hint) hint.textContent=open ? 'Tap to hide all daily amounts' : 'Tap to reveal the complete month • Sale + Profit';
+  });
+  root.querySelectorAll('.monthly-sort-tab').forEach(btn=>btn.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    root.querySelectorAll('.monthly-sort-tab').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false');});
+    btn.classList.add('active'); btn.setAttribute('aria-selected','true');
+    let rows=rawRows.slice();
+    const mode=btn.dataset.monthlySort;
+    if(mode==='profit-desc') rows.sort((a,b)=>b.profit-a.profit || b.sale-a.sale || a.date.localeCompare(b.date));
+    else if(mode==='sale-desc') rows.sort((a,b)=>b.sale-a.sale || b.profit-a.profit || a.date.localeCompare(b.date));
+    else if(mode==='profit-asc') rows.sort((a,b)=>a.profit-b.profit || a.sale-b.sale || a.date.localeCompare(b.date));
+    else rows.sort((a,b)=>a.date.localeCompare(b.date));
+    renderSortedRows(rows);
+  }));
 }
 
 async function renderTrendSection(sales, totalSale, totalProfit){
@@ -4409,6 +4464,7 @@ async function renderTrendSection(sales, totalSale, totalProfit){
     }
   }
   const weeklyDetailHtml = reportPeriod==='weekly' ? renderWeeklyDailyDetail(dateTotals) : '';
+  if(reportPeriod==='monthly'){ window.__hmMonthlyDetailRows = dateTotals.map(d=>({...d})); }
   const monthlyDetailHtml = reportPeriod==='monthly' ? renderMonthlyDailyDetail(dateTotals) : '';
   return `
     <div class="section-title">Sales & Profit Trend</div>
@@ -6579,6 +6635,18 @@ document.addEventListener('wheel', e=>{
   } else {
     await switchView('dashboard');
   }
+})();
+
+
+(function bindMonthlyDetailObserver(){
+  if(window.__hmMonthlyDetailObserverBound) return;
+  window.__hmMonthlyDetailObserverBound=true;
+  const start=()=>{
+    const root=document.getElementById('monthlyDailyDetail');
+    if(root) initMonthlyDailyDetail(root);
+  };
+  start();
+  new MutationObserver(start).observe(document.body,{childList:true,subtree:true});
 })();
 </script>
 </body>
