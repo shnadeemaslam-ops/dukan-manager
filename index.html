@@ -810,6 +810,18 @@ async function saveServiceSubTypes(){
   try{ await db.collection('shop').doc('serviceSubTypes').set({value: serviceSubTypes}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
+let quickServiceTemplates = [];
+async function loadQuickServiceTemplates(){
+  try{
+    const doc = await db.collection('shop').doc('quickServiceTemplates').get();
+    if(doc.exists && Array.isArray(doc.data().list)) quickServiceTemplates = doc.data().list;
+    return doc.exists ? 'ok' : 'empty';
+  }catch(e){ console.error(e); return 'error'; }
+}
+async function saveQuickServiceTemplates(){
+  try{ await db.collection('shop').doc('quickServiceTemplates').set({list: quickServiceTemplates}); scheduleAutoBackup(); return true; }
+  catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
+}
 let subPartTypes = {};
 function subPartKey(cat, sub){ return cat+'::'+sub; }
 async function loadSubPartTypes(){
@@ -3734,10 +3746,17 @@ function renderServiceForm(){
   svcPaymentMethod = 'cash';
   document.getElementById('saleModeBody').innerHTML = `
     <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;">
+        <label style="margin:0;">Quick Service</label>
+        <span style="color:var(--accent); cursor:pointer; font-size:12px; font-weight:600;" onclick="openQuickServiceTemplatesModal()">Manage</span>
+      </div>
+      <div id="quickServiceTemplatesWrap" class="chips" style="margin-bottom:14px; max-height:120px; overflow:auto;"></div>
       <label>Service Type</label>
       <select id="svc_type" onchange="toggleServiceFields()">
         ${SERVICE_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
       </select>
+      <label>Device / Model</label>
+      <input id="svc_model" placeholder="e.g. Dell Latitude 5490 / Infinix Hot 12">
       <div id="customNameWrap" style="display:none">
         <label>Enter Service Name</label>
         <input id="svc_custom_name" placeholder="e.g. Software Update">
@@ -3791,7 +3810,92 @@ function renderServiceForm(){
     </div>
   `;
   toggleServiceFields();
+  renderQuickServiceTemplateButtons();
   refreshCustomerDatalist();
+}
+function renderQuickServiceTemplateButtons(){
+  const wrap = document.getElementById('quickServiceTemplatesWrap');
+  if(!wrap) return;
+  if(!quickServiceTemplates.length){
+    wrap.innerHTML = `<span style="color:var(--muted); font-size:12px;">No quick services yet — tap Manage to add one.</span>`;
+    return;
+  }
+  wrap.innerHTML = quickServiceTemplates.map((t,i)=>`
+    <div class="chip" style="cursor:pointer; display:flex; align-items:center; gap:7px;" onclick="applyQuickServiceTemplate(${i})">
+      <span>${t.name}</span><span style="font-size:11px; opacity:.75;">${fmtMoney(t.defaultFee||0)}</span>
+    </div>`).join('');
+}
+function applyQuickServiceTemplate(index){
+  const t = quickServiceTemplates[index];
+  if(!t) return;
+  const typeEl = document.getElementById('svc_type');
+  if(typeEl) typeEl.value = t.type || 'Other Service';
+  toggleServiceFields();
+  const subEl = document.getElementById('svc_subtype');
+  if(subEl && t.subType){
+    if(![...subEl.options].some(o=>o.value===t.subType)){
+      const opt=document.createElement('option'); opt.value=t.subType; opt.textContent=t.subType;
+      subEl.insertBefore(opt, subEl.querySelector('option[value="__add_new__"]')||null);
+    }
+    subEl.value=t.subType;
+  }
+  const customEl=document.getElementById('svc_custom_name');
+  if(customEl) customEl.value=(t.type==='Other Service'?t.name:'');
+  const amountEl=document.getElementById('svc_amount');
+  if(amountEl) amountEl.value=t.defaultFee||'';
+  const costEl=document.getElementById('svc_part_cost');
+  if(costEl) costEl.value=t.defaultCost||'';
+  const partEl=document.getElementById('svc_part_name');
+  if(partEl) partEl.value='';
+  updateServiceProfitPreview();
+  const modelEl=document.getElementById('svc_model');
+  if(modelEl) modelEl.focus();
+  showToast(`${t.name} selected ✓`);
+}
+function openQuickServiceTemplatesModal(){
+  const existing=document.getElementById('quickSvcOverlay'); if(existing) existing.remove();
+  const overlay=document.createElement('div'); overlay.className='modal-overlay'; overlay.id='quickSvcOverlay';
+  overlay.innerHTML=`<div class="modal"><h3>Quick Services</h3>
+    <p style="color:var(--muted);font-size:12.5px;line-height:1.6;margin-top:-4px;">Ek service ek dafa save karein. Baad mein sirf button dabayein, model likhein aur fee automatically aa jayegi.</p>
+    <div id="quickSvcList"></div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
+      <label>Service Name</label><input id="qst_name" placeholder="e.g. Windows 11 Installation">
+      <label>Service Type</label><select id="qst_type">${SERVICE_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+      <label>Repair Type / Sub-category (optional)</label><input id="qst_subtype" placeholder="e.g. Windows / Charging / Display">
+      <div class="row2"><div><label>Default Fee (Rs)</label><input id="qst_fee" type="number" inputmode="decimal" placeholder="1500"></div><div><label>Default Part Cost (Rs)</label><input id="qst_cost" type="number" inputmode="decimal" placeholder="0"></div></div>
+      <button class="primary" onclick="saveQuickServiceTemplateFromModal()">+ Save Quick Service</button>
+    </div>
+    <button class="secondary" style="width:100%;margin-top:10px" onclick="document.getElementById('quickSvcOverlay').remove()">Close</button>
+  </div>`;
+  document.getElementById('app').appendChild(overlay); overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+  renderQuickServiceTemplateList();
+}
+function renderQuickServiceTemplateList(){
+  const el=document.getElementById('quickSvcList'); if(!el) return;
+  el.innerHTML=quickServiceTemplates.length?quickServiceTemplates.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div style="flex:1"><b>${t.name}</b><div style="font-size:11.5px;color:var(--muted)">${t.type}${t.subType?' · '+t.subType:''} · ${fmtMoney(t.defaultFee||0)}</div></div><button class="danger-text" onclick="deleteQuickServiceTemplate(${i})">Delete</button></div>`).join(''):`<div class="empty" style="padding:12px 0">No quick services saved.</div>`;
+}
+async function saveQuickServiceTemplateFromModal(){
+  const name=document.getElementById('qst_name').value.trim();
+  const type=document.getElementById('qst_type').value;
+  const subType=document.getElementById('qst_subtype').value.trim();
+  const defaultFee=parseFloat(document.getElementById('qst_fee').value)||0;
+  const defaultCost=parseFloat(document.getElementById('qst_cost').value)||0;
+  if(!name){showToast('Service name is required');return;}
+  if(defaultFee<=0){showToast('Default fee is required');return;}
+  if(!quickServiceTemplates.some(t=>t.name.toLowerCase()===name.toLowerCase())) quickServiceTemplates.push({id:uid(),name,type,subType,defaultFee,defaultCost});
+  else {showToast('This quick service already exists');return;}
+  if(subType && SUBTYPE_SERVICE_TYPES.includes(type)){
+    if(!serviceSubTypes[type]) serviceSubTypes[type]=[];
+    if(!serviceSubTypes[type].includes(subType)){serviceSubTypes[type].push(subType); await saveServiceSubTypes();}
+  }
+  await saveQuickServiceTemplates();
+  showToast('Quick service saved ✓');
+  renderQuickServiceTemplateList(); renderQuickServiceTemplateButtons();
+  document.getElementById('qst_name').value=''; document.getElementById('qst_subtype').value=''; document.getElementById('qst_fee').value=''; document.getElementById('qst_cost').value='';
+}
+async function deleteQuickServiceTemplate(index){
+  if(!quickServiceTemplates[index]) return;
+  quickServiceTemplates.splice(index,1); await saveQuickServiceTemplates(); renderQuickServiceTemplateList(); renderQuickServiceTemplateButtons(); showToast('Quick service deleted');
 }
 function addServiceToBillCart(){
   const type = document.getElementById('svc_type').value;
@@ -3799,6 +3903,7 @@ function addServiceToBillCart(){
   const subtypeSel = document.getElementById('svc_subtype');
   let subType = subtypeSel ? subtypeSel.value : '';
   if(subType==='__add_new__' || subType==='') subType = '';
+  const model = document.getElementById('svc_model') ? document.getElementById('svc_model').value.trim() : '';
   const partName = document.getElementById('svc_part_name') ? document.getElementById('svc_part_name').value.trim() : '';
   const partCost = document.getElementById('svc_part_cost') ? (parseFloat(document.getElementById('svc_part_cost').value)||0) : 0;
   const amount = parseFloat(document.getElementById('svc_amount').value)||0;
@@ -3808,6 +3913,7 @@ function addServiceToBillCart(){
   let name = (type==='Other Service' && customName) ? customName : type;
   if(subType) name = subType;
   if(partName) name = partName + ' (' + (subType || type) + ')';
+  if(model) name = model + ' — ' + name;
 
   billCart.push({ itemId: null, name, qty, unitCost: partCost, unitSell: amount, category: type, isService: true, serviceSubType: subType||null });
   showToast(`${name} added to bill ✓`);
@@ -3816,6 +3922,7 @@ function addServiceToBillCart(){
   document.getElementById('svc_qty').value=1;
   if(document.getElementById('svc_part_name')) document.getElementById('svc_part_name').value='';
   if(document.getElementById('svc_part_cost')) document.getElementById('svc_part_cost').value='';
+  if(document.getElementById('svc_model')) document.getElementById('svc_model').value='';
   updateServiceProfitPreview();
   refreshBillBar();
 }
@@ -3946,6 +4053,7 @@ async function submitService(){
   const subtypeSel = document.getElementById('svc_subtype');
   let subType = subtypeSel ? subtypeSel.value : '';
   if(subType==='__add_new__' || subType==='') subType = '';
+  const model = document.getElementById('svc_model') ? document.getElementById('svc_model').value.trim() : '';
   const partName = document.getElementById('svc_part_name') ? document.getElementById('svc_part_name').value.trim() : '';
   const partCost = document.getElementById('svc_part_cost') ? (parseFloat(document.getElementById('svc_part_cost').value)||0) : 0;
   const amount = parseFloat(document.getElementById('svc_amount').value)||0;
@@ -3976,6 +4084,7 @@ async function submitService(){
   let name = (type==='Other Service' && customName) ? customName : type;
   if(subType) name = subType;
   if(partName) name = partName + ' (' + (subType || type) + ')';
+  if(model) name = model + ' — ' + name;
 
   let customerId = null;
   if(customerName) customerId = await findOrCreateCustomer(customerName, customerPhone);
@@ -6610,7 +6719,7 @@ document.addEventListener('wheel', e=>{
     document.getElementById('view').innerHTML = `<div class="empty" style="padding:40px 20px; line-height:1.7;">Could not connect to the cloud database.<br>Please check your internet connection and reopen the app.</div>`;
     return;
   }
-  const loadResults = await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs(), loadSuppliers(), loadPhoneContacts()]);
+  const loadResults = await Promise.all([loadItems(), loadSettings(), loadPartTypes(), loadSecurity(), loadCredit(), loadShopping(), loadShoppingCategories(), loadExpenses(), loadCategories(), loadSubPartTypes(), loadServiceSubTypes(), loadCustomers(), loadRepairJobs(), loadSuppliers(), loadPhoneContacts(), loadQuickServiceTemplates()]);
   const partTypesLoadStatus = loadResults[2];
   const categoriesLoadStatus = loadResults[8];
   subscribeToInvoices();
