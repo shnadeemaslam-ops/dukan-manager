@@ -6351,8 +6351,11 @@ function initGoogleDriveClient(){
   // If previously connected on this device, try a silent (no-prompt) token refresh
   // in the background so auto-backup keeps working without asking to log in again.
   if(loadDriveConnectedFlag()){
+    // Keep the Drive connection state, but do NOT request a Google OAuth token
+    // automatically on every app startup. Google may show an account/verification
+    // prompt even for a silent request when the previous token/session has expired.
+    // A token will be requested only when a Drive operation actually needs it.
     gDriveConnected = true;
-    silentDriveTokenRefresh();
   }
 }
 function silentDriveTokenRefresh(){
