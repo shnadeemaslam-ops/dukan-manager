@@ -20,7 +20,7 @@
     --border:#26314A;
     --accent:#F2A93B;
     --accent-dim:#8a6a2c;
-    --accent-text:#111827;
+    --accent-text:var(--accent-text);
     --green:#3DDC97;
     --red:#F2555A;
     --text:#EAF0FB;
@@ -52,6 +52,15 @@
     --text:#E8ECF2;
     --muted:#8A93A3;
   }
+  /* Dark family variants */
+  [data-theme="dark-midnight"]{--bg:#0B1020;--surface:#121A2B;--surface2:#19243A;--border:#293650;--accent:#4F8CFF;--accent-dim:#315BA8;--accent-text:#07101F;--green:#39D98A;--red:#FF5C70;--text:#EEF4FF;--muted:#8E9BB5;}
+  [data-theme="dark-carbon"]{--bg:#101214;--surface:#181B1F;--surface2:#22262B;--border:#353B43;--accent:#F0A83A;--accent-dim:#A87328;--accent-text:#211405;--green:#42D392;--red:#F05B67;--text:#F5F7FA;--muted:#929AA6;}
+  /* Light family variants */
+  [data-theme="light-sky"]{--bg:#F2F7FC;--surface:#FFFFFF;--surface2:#EAF2FA;--border:#D4E0EC;--accent:#2878D4;--accent-dim:#4D83B8;--accent-text:#FFFFFF;--green:#169B68;--red:#D83F50;--text:#17263A;--muted:#66778C;}
+  [data-theme="light-warm"]{--bg:#F8F6F1;--surface:#FFFFFF;--surface2:#F2EEE5;--border:#DED8CB;--accent:#B97824;--accent-dim:#93601E;--accent-text:#FFFFFF;--green:#258B61;--red:#C9404D;--text:#28241D;--muted:#756F64;}
+  /* Slate family variants */
+  [data-theme="slate-blue"]{--bg:#182231;--surface:#202D3E;--surface2:#29394D;--border:#3B4D63;--accent:#62B0FF;--accent-dim:#4277A9;--accent-text:#081827;--green:#55D59B;--red:#F06A76;--text:#EAF3FF;--muted:#91A0B5;}
+  [data-theme="slate-teal"]{--bg:#172728;--surface:#203536;--surface2:#294344;--border:#3C5A5A;--accent:#48D1C1;--accent-dim:#318E84;--accent-text:#071D1B;--green:#65DFA5;--red:#EF6875;--text:#EAFBF9;--muted:#91AEAC;}
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html,body{height:100%;}
   body{
@@ -143,32 +152,6 @@
     .fab{ display:none !important; }
   }
 
-  /* ---- Dashboard v2 ---- */
-  .dash-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
-  .dash-kpi{background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:14px;min-height:92px;cursor:pointer;position:relative;overflow:hidden;}
-  .dash-kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:.75;}
-  .dash-kpi.profit-kpi::before,.dash-kpi.net-kpi::before{background:var(--green);}
-  .dash-kpi.expense-kpi::before{background:var(--muted);}
-  .dash-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700;}
-  .dash-kpi-value{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:800;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .dash-kpi.sale-kpi .dash-kpi-value{color:var(--accent);}.dash-kpi.profit-kpi .dash-kpi-value,.dash-kpi.net-kpi .dash-kpi-value{color:var(--green);}
-  .dash-kpi-note{font-size:10px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .dash-quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0;}
-  .dash-quick{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:13px;padding:11px 8px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;transition:.15s;}
-  .dash-quick:hover{border-color:var(--accent);transform:translateY(-1px);}.dash-quick span{font-size:18px;line-height:20px;}.dash-quick b{font-size:12px;}.dash-quick small{font-size:10px;color:var(--muted);}
-  .dash-alert-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0;}
-  .dash-alert-card{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;min-width:0;}
-  .dash-alert-card.attention{border-color:rgba(242,169,59,.45);}.dash-alert-card.danger{border-color:rgba(239,91,91,.5);}.dash-alert-icon{font-size:21px;flex-shrink:0;}.dash-alert-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}.dash-alert-value{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;margin-top:3px;}.dash-alert-note{font-size:9px;color:var(--muted);margin-top:2px;}
-  .dash-two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;}
-  .dash-panel{background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:14px;min-width:0;overflow:hidden;}
-  .dash-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;}.dash-panel-head b{font-size:13px;}.dash-panel-head small{display:block;color:var(--muted);font-size:10px;margin-top:2px;}.dash-panel-head>strong{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);white-space:nowrap;}
-  .dash-bar-row{display:grid;grid-template-columns:42px 1fr 72px;gap:7px;align-items:center;margin:8px 0;font-size:9px;color:var(--muted);}.dash-bar-row>b{text-align:right;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text);}.dash-bar-track{height:7px;background:var(--bg);border-radius:99px;overflow:hidden;border:1px solid var(--border);}.dash-bar-fill{height:100%;background:var(--accent);border-radius:99px;min-width:0;}
-  .dash-panel-foot{border-top:1px solid var(--border);margin-top:10px;padding-top:9px;color:var(--muted);font-size:10px;}.dash-panel-foot b{color:var(--green);font-family:'JetBrains Mono',monospace;}
-  .dash-mix-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;}.dash-mix-row:last-of-type{border-bottom:none;}.dash-mix-row b{font-family:'JetBrains Mono',monospace;}
-  .dash-top-row,.dash-stock-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border);}.dash-top-row:last-child,.dash-stock-row:last-child{border-bottom:none;}.dash-top-row>b{font-family:'JetBrains Mono',monospace;font-size:11px;}.dash-rank{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;flex-shrink:0;}.dash-stock-row .item-info{flex:1;min-width:0;}
-  @media(max-width:650px){.dash-kpi-grid{grid-template-columns:1fr 1fr;}.dash-quick-grid{grid-template-columns:1fr 1fr;}.dash-alert-grid{grid-template-columns:1fr;}.dash-two-col{grid-template-columns:1fr;}.dash-kpi-value{font-size:18px;}.dash-bar-row{grid-template-columns:42px 1fr 65px;}}
-  @media(min-width:900px){.dash-kpi-grid{gap:12px;}.dash-two-col{gap:12px;}.dash-quick-grid{gap:10px;}}
-
   /* Register display (signature element) */
   .register{
     background:var(--surface);
@@ -214,7 +197,13 @@
     display:flex; align-items:center; justify-content:space-between; gap:10px;
   }
   .search-wrap{position:relative;}
-  .search-wrap input{padding-right:44px;}
+  .search-wrap input{padding-right:78px;}
+  .clear-btn{
+    position:absolute; right:44px; top:50%; transform:translateY(-50%);
+    width:28px; height:28px; border-radius:50%; border:none; padding:0;
+    background:var(--border); align-items:center; justify-content:center;
+    cursor:pointer; color:var(--muted); font-size:15px; line-height:1;
+  }
   .mic-btn{
     position:absolute; right:6px; top:50%; transform:translateY(-50%);
     width:32px; height:32px; border-radius:50%; border:none; padding:0;
@@ -339,142 +328,274 @@
     #printReceiptArea{display:block !important; padding:0; margin:0; color:#000; background:#fff;}
   }
 
-/* Dashboard privacy-focused 2-card layout */
-.dash-kpi-grid-2{grid-template-columns:repeat(2,minmax(0,1fr));}
-@media(max-width:560px){.dash-kpi-grid-2{grid-template-columns:1fr 1fr;}}
-.dash-private-panel{user-select:none;}
+  /* ================= PREMIUM UI POLISH ================= */
+  :root{
+    --ui-radius:16px;
+    --ui-radius-sm:12px;
+    --ui-shadow:0 10px 30px rgba(0,0,0,.12);
+    --ui-shadow-soft:0 4px 18px rgba(0,0,0,.08);
+  }
+  body{
+    background:
+      radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 32%),
+      radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--green) 6%, transparent), transparent 30%),
+      var(--bg);
+    transition:background .25s ease,color .2s ease;
+  }
+  #app{
+    background:var(--bg);
+  }
+  header{
+    background:color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    box-shadow:0 1px 0 var(--border);
+  }
+  header .shopname{
+    letter-spacing:.45px;
+  }
+  header .shopname .dot{
+    width:9px;height:9px;
+    box-shadow:0 0 12px color-mix(in srgb, var(--green) 75%, transparent);
+  }
+  main{
+    scroll-behavior:smooth;
+  }
+  .card,.register{
+    border-radius:var(--ui-radius);
+    box-shadow:var(--ui-shadow-soft);
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .card:hover{
+    transform:translateY(-1px);
+    border-color:color-mix(in srgb, var(--accent) 32%, var(--border));
+    box-shadow:var(--ui-shadow);
+  }
+  .register{
+    background:linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, var(--accent) 4%), var(--surface));
+    padding:18px 16px;
+  }
+  .register::before{
+    height:3px;
+    opacity:.8;
+  }
+  .reg-cell .val{
+    letter-spacing:-.4px;
+  }
+  .section-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    letter-spacing:1.2px;
+    margin-top:24px;
+  }
+  .section-title::before{
+    content:'';
+    width:4px;height:16px;border-radius:8px;
+    background:var(--accent);
+    box-shadow:0 0 10px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .item-name{font-size:15px;letter-spacing:.05px;}
+  .badge{box-shadow:inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);}
+  .chip{
+    transition:all .18s ease;
+    box-shadow:0 2px 7px rgba(0,0,0,.04);
+  }
+  .chip:hover{
+    border-color:color-mix(in srgb, var(--accent) 45%, var(--border));
+    color:var(--text);
+    transform:translateY(-1px);
+  }
+  .chip.active{
+    box-shadow:0 5px 16px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  button.primary{
+    border-radius:var(--ui-radius-sm);
+    background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 88%, white 12%), var(--accent));
+    box-shadow:0 7px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+    transition:transform .16s ease, box-shadow .16s ease, filter .16s ease;
+  }
+  button.primary:hover{
+    filter:brightness(1.05);
+    transform:translateY(-1px);
+    box-shadow:0 10px 24px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  button.primary:active,.fab:active,.nav-btn:active{transform:translateY(0) scale(.98);}
+  button.secondary{
+    border-radius:var(--ui-radius-sm);
+    transition:all .16s ease;
+  }
+  button.secondary:hover{
+    border-color:color-mix(in srgb, var(--accent) 45%, var(--border));
+    background:color-mix(in srgb, var(--surface2) 88%, var(--accent) 12%);
+  }
+  input,select{
+    border-radius:var(--ui-radius-sm);
+    transition:border-color .16s ease, box-shadow .16s ease, background .16s ease;
+  }
+  input:focus,select:focus{
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+  .nav-btn{
+    transition:background .16s ease,color .16s ease,transform .16s ease;
+  }
+  .nav-btn:hover{
+    background:color-mix(in srgb, var(--surface2) 65%, var(--accent) 8%);
+    color:var(--text);
+  }
+  .nav-btn.active{
+    font-weight:650;
+  }
+  .modal-overlay{
+    background:rgba(4,7,12,.66);
+    backdrop-filter:blur(5px);
+    -webkit-backdrop-filter:blur(5px);
+  }
+  .modal{
+    box-shadow:0 -14px 50px rgba(0,0,0,.22);
+  }
+  .toast{
+    border-radius:14px;
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+  .fab{
+    background:linear-gradient(145deg, color-mix(in srgb, var(--accent) 90%, white 10%), var(--accent));
+    box-shadow:0 8px 24px color-mix(in srgb, var(--accent) 28%, transparent);
+    transition:transform .16s ease, box-shadow .16s ease;
+  }
+  .fab:hover{
+    transform:translateY(-2px);
+    box-shadow:0 12px 30px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .theme-picker{
+    display:grid !important;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:7px !important;
+    margin-bottom:14px !important;
+  }
+  .theme-btn{
+    position:relative;
+    min-height:54px;
+    padding:8px 5px !important;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    font-size:11px !important;
+    font-weight:600;
+  }
+  .theme-btn::before{
+    content:'';
+    width:22px;height:22px;border-radius:50%;
+    background:var(--theme-preview);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.22),0 3px 9px rgba(0,0,0,.18);
+  }
+  .theme-btn.selected{
+    border-color:var(--accent) !important;
+    background:color-mix(in srgb, var(--accent) 13%, var(--surface2)) !important;
+    color:var(--text) !important;
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .theme-btn.selected::after{
+    content:'✓';
+    position:absolute;right:5px;top:3px;
+    color:var(--accent);font-size:11px;font-weight:800;
+  }
+  .theme-dark{--theme-preview:#F2A93B;}
+  .theme-light{--theme-preview:#D98A2B;}
+  .theme-slate{--theme-preview:#5B9BD5;}
+  .theme-dark-midnight{--theme-preview:#4F8CFF;}
+  .theme-dark-carbon{--theme-preview:#F0A83A;}
+  .theme-light-sky{--theme-preview:#2878D4;}
+  .theme-light-warm{--theme-preview:#B97824;}
+  .theme-slate-blue{--theme-preview:#62B0FF;}
+  .theme-slate-teal{--theme-preview:#48D1C1;}
+  @media (min-width:900px){
+    #app{
+      box-shadow:0 28px 80px rgba(0,0,0,.38);
+    }
+    .bottom-nav{
+      background:color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+    }
+    main{padding-top:28px;}
+    .modal{border-radius:20px;}
+  }
+  @media (max-width:560px){
+    .theme-picker{grid-template-columns:repeat(3,1fr);}
+    .theme-btn:nth-child(4),.theme-btn:nth-child(5){grid-column:auto;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important;}
+  }
 
-/* ===== Hassan Multimedia UI Polish ===== */
-:root{
-  --radius-xs:8px; --radius-sm:11px; --radius-md:14px; --radius-lg:18px;
-  --shadow-sm:0 2px 8px rgba(0,0,0,.10);
-  --shadow-md:0 8px 24px rgba(0,0,0,.14);
-  --focus-ring:0 0 0 3px rgba(242,169,59,.16);
-}
-body{line-height:1.45;}
-button,input,select{transition:border-color .16s ease,box-shadow .16s ease,background .16s ease,transform .12s ease,opacity .16s ease;}
-header{
-  background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--surface) 92%,var(--bg)));
-  min-height:64px; padding:12px 18px;
-  box-shadow:0 1px 0 rgba(255,255,255,.02);
-}
-header .shopname{font-size:20px; letter-spacing:.1px;}
-header .shopname .dot{width:9px;height:9px;}
-header button.icon-btn{
-  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
-  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
-}
-header button.icon-btn:hover{color:var(--text);border-color:var(--accent);transform:translateY(-1px);}
-header button.icon-btn:active{transform:scale(.96);}
-main{padding-top:18px;}
 
-/* Navigation */
-.bottom-nav{background:var(--surface);}
-.nav-btn{font-weight:600;letter-spacing:.05px;}
-.nav-btn:hover{background:var(--surface2);color:var(--text);}
-.nav-btn.active{font-weight:700;}
-@media(min-width:900px){
-  #app{box-shadow:0 24px 70px rgba(0,0,0,.28);}
-  .bottom-nav{background:color-mix(in srgb,var(--surface) 96%,var(--bg));}
-  .nav-btn.active{box-shadow:inset 3px 0 0 var(--accent);}
-}
+/* Trend chart interaction */
+.trend-reveal-hint{text-align:right;font-size:9.5px;color:var(--muted);margin:0 3px 2px;opacity:.78}
+@media (max-width:520px){.trend-reveal-hint{font-size:9px}.trend-amount-legend{font-size:10px;gap:16px}.trend-detail-value{font-size:14px}}
 
-/* Cards and panels */
-.card,.dash-kpi,.dash-panel,.dash-alert-card,.dash-quick{
-  box-shadow:var(--shadow-sm);
-  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
-}
-.card:hover,.dash-panel:hover,.dash-alert-card:hover{border-color:color-mix(in srgb,var(--border) 55%,var(--accent));}
-.dash-kpi:hover,.dash-quick:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}
-.dash-kpi{border-radius:16px;padding:15px;}
-.dash-panel,.card{border-radius:16px;}
-.dash-quick{border-radius:14px;}
-.dash-alert-card{border-radius:15px;}
-.section-title{font-size:13px;letter-spacing:.75px;margin-top:22px;}
+/* Weekly 7-day daily detail: collapsed by default, expands on tap. */
+.weekly-daily-detail{display:block;margin:12px 0 14px;border:1px solid var(--border);border-radius:18px;background:var(--card);overflow:hidden;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .2s,box-shadow .2s}
+.weekly-daily-detail:hover{border-color:var(--accent)}
+.weekly-detail-header{display:flex;align-items:center;justify-content:space-between;padding:15px 16px}
+.weekly-detail-title{font-size:15px;font-weight:700;color:var(--text)}
+.weekly-detail-hint{margin-top:3px;font-size:11px;color:var(--muted)}
+.weekly-detail-chevron{font-size:20px;color:var(--muted);transition:transform .2s}
+.weekly-daily-detail.open .weekly-detail-chevron{transform:rotate(180deg);color:var(--accent)}
+.weekly-detail-content{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
+.weekly-daily-detail.open .weekly-detail-content{display:block;animation:weeklyDetailIn .18s ease-out}
+@keyframes weeklyDetailIn{from{opacity:.2;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+.weekly-detail-summary{display:flex;justify-content:space-between;gap:12px;padding:12px 2px 10px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:8px}
+.sale-text{color:var(--accent);font-family:'JetBrains Mono',monospace;margin-left:3px}
+.profit-text{color:var(--green);font-family:'JetBrains Mono',monospace;margin-left:3px}
+.weekly-detail-day{padding:9px 0;border-bottom:1px solid color-mix(in srgb,var(--border) 65%,transparent)}
+.weekly-detail-day:last-child{border-bottom:0}
+.weekly-detail-date{display:flex;align-items:baseline;gap:7px;width:82px;flex:0 0 82px;color:var(--text)}
+.weekly-detail-date b{font-size:12px}.weekly-detail-date span{font-size:10px;color:var(--muted)}
+.weekly-detail-metrics{display:flex;flex-direction:column;gap:7px;flex:1}
+.weekly-detail-day{display:flex;gap:10px;align-items:center}
+.weekly-detail-line{display:flex;align-items:center;gap:7px;min-width:0}
+.metric-label{width:38px;font-size:10px;font-weight:700;flex:0 0 38px}
+.sale-line .metric-label{color:var(--accent)}.profit-line .metric-label{color:var(--green)}
+.metric-track{height:8px;flex:1;min-width:40px;border-radius:999px;background:color-mix(in srgb,var(--border) 70%,transparent);overflow:hidden}
+.metric-fill{height:100%;min-width:0;border-radius:999px;transition:width .25s ease}
+.sale-line .metric-fill{background:var(--accent);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 38%,transparent)}
+.profit-line .metric-fill{background:var(--green);box-shadow:0 0 8px color-mix(in srgb,var(--green) 30%,transparent)}
+.metric-amount{width:76px;text-align:right;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;flex:0 0 76px}
+.sale-line .metric-amount{color:var(--accent)}.profit-line .metric-amount{color:var(--green)}
+@media(max-width:520px){.weekly-detail-header{padding:13px 14px}.weekly-detail-summary{font-size:10px}.weekly-detail-date{width:72px;flex-basis:72px}.metric-label{width:34px;flex-basis:34px}.metric-amount{width:67px;flex-basis:67px;font-size:9.5px}.weekly-detail-day{gap:7px}}
 
-/* Register / totals */
-.register{border-radius:18px;padding:17px 18px;box-shadow:var(--shadow-sm);}
-.reg-cell .lbl{font-size:10px;letter-spacing:.8px;}
-.reg-cell .val{font-size:24px;}
-
-/* Search */
-.search-wrap input{padding-left:14px;padding-right:48px;}
-.search-wrap input::placeholder{color:var(--muted);opacity:.78;}
-.search-wrap:focus-within input{border-color:var(--accent);box-shadow:var(--focus-ring);}
-.mic-btn{width:34px;height:34px;right:5px;border:1px solid transparent;}
-.mic-btn:hover{color:var(--text);border-color:var(--accent);background:var(--surface);}
-
-/* Inputs */
-input,select{border-radius:11px;min-height:44px;box-shadow:inset 0 1px 1px rgba(0,0,0,.04);}
-input:hover,select:hover{border-color:color-mix(in srgb,var(--border) 45%,var(--muted));}
-input:focus,select:focus{box-shadow:var(--focus-ring);}
-label{font-size:12px;font-weight:600;letter-spacing:.1px;}
-
-/* Buttons */
-button.primary{
-  min-height:46px;border-radius:12px;
-  box-shadow:0 5px 16px rgba(0,0,0,.14);
-}
-button.primary:hover{filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,0,0,.18);}
-button.primary:active{transform:translateY(0) scale(.99);}
-button.secondary{min-height:42px;border-radius:11px;font-weight:600;}
-button.secondary:hover{border-color:var(--accent);background:var(--surface);}
-button.danger-text:hover{background:rgba(242,85,90,.08);border-radius:8px;}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:none;box-shadow:var(--focus-ring);}
-
-/* Inventory/list rows */
-.item-row,.sale-list-item,.dash-top-row,.dash-stock-row{min-height:48px;}
-.item-name{font-size:14px;}
-.item-cat{font-size:11px;}
-.badge{border:1px solid transparent;}
-.badge.ok{border-color:rgba(61,220,151,.18);}
-.badge.low{border-color:rgba(242,169,59,.18);}
-.badge.out{border-color:rgba(242,85,90,.18);}
-.chip{box-shadow:0 1px 3px rgba(0,0,0,.06);}
-.chip:hover{border-color:var(--accent);color:var(--text);}
-
-/* Modal */
-.modal-overlay{backdrop-filter:blur(4px);background:rgba(0,0,0,.52);}
-.modal{border:1px solid var(--border);box-shadow:0 -12px 40px rgba(0,0,0,.22);}
-.modal h3{font-size:18px;}
-@media(min-width:900px){
-  .modal-overlay{align-items:center;padding:24px;}
-  .modal{max-width:560px;border-radius:18px;padding:24px;max-height:88vh;}
-}
-
-/* Empty state */
-.empty{border:1px dashed var(--border);border-radius:14px;background:var(--surface);}
-
-/* Floating action button */
-.fab{box-shadow:0 8px 24px rgba(0,0,0,.24),0 4px 18px rgba(242,169,59,.25);}
-.fab:hover{transform:translateY(-2px) scale(1.02);}
-.fab:active{transform:scale(.96);}
-
-/* Toast */
-.toast{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.24);backdrop-filter:blur(8px);}
-
-/* Private dashboard values */
-.dash-private-panel{cursor:pointer;}
-.dash-private-panel:active{transform:scale(.99);}
-
-/* Better small-screen spacing */
-@media(max-width:560px){
-  main{padding:14px 13px 88px;}
-  header{padding-left:14px;padding-right:14px;}
-  .dash-kpi{min-height:88px;padding:13px;}
-  .dash-kpi-value{font-size:17px;}
-  .dash-kpi-note{font-size:9px;}
-  .dash-quick{padding:12px 9px;}
-  .card{padding:13px;}
-  .register{padding:14px 12px;}
-  .reg-cell .val{font-size:21px;}
-}
-
-/* Respect reduced motion */
-@media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important;}
-}
-
+/* Monthly full-month daily detail: collapsed by default, expands on tap. */
+.monthly-daily-detail{display:block;margin:12px 0 14px;border:1px solid var(--border);border-radius:18px;background:var(--card);overflow:hidden;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:border-color .2s,box-shadow .2s}
+.monthly-daily-detail:hover{border-color:var(--accent)}
+.monthly-detail-header{display:flex;align-items:center;justify-content:space-between;padding:15px 16px}
+.monthly-detail-title{font-size:15px;font-weight:700;color:var(--text)}
+.monthly-detail-hint{margin-top:3px;font-size:11px;color:var(--muted)}
+.monthly-detail-chevron{font-size:20px;color:var(--muted);transition:transform .2s}
+.monthly-daily-detail.open .monthly-detail-chevron{transform:rotate(180deg);color:var(--accent)}
+.monthly-detail-content{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
+.monthly-daily-detail.open .monthly-detail-content{display:block;animation:monthlyDetailIn .18s ease-out}
+@keyframes monthlyDetailIn{from{opacity:.2;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+.monthly-detail-summary{display:flex;justify-content:space-between;gap:12px;padding:12px 2px 10px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:8px;flex-wrap:wrap}
+.monthly-detail-day{padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--border) 65%,transparent);display:flex;gap:10px;align-items:center}
+.monthly-detail-day:last-child{border-bottom:0}
+.monthly-detail-date{width:62px;flex:0 0 62px;color:var(--text);display:flex;align-items:baseline;gap:5px}
+.monthly-detail-date b{font-size:12px}.monthly-detail-date span{font-size:10px;color:var(--muted)}
+.monthly-detail-metrics{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.monthly-detail-line{display:flex;align-items:center;gap:7px;min-width:0}
+.monthly-detail-label{width:38px;font-size:10px;font-weight:700;flex:0 0 38px}
+.monthly-sale-line .monthly-detail-label{color:var(--accent)}.monthly-profit-line .monthly-detail-label{color:var(--green)}
+.monthly-track{height:7px;flex:1;min-width:30px;border-radius:999px;background:color-mix(in srgb,var(--border) 70%,transparent);overflow:hidden}
+.monthly-fill{height:100%;border-radius:999px}
+.monthly-sale-line .monthly-fill{background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 34%,transparent)}
+.monthly-profit-line .monthly-fill{background:var(--green);box-shadow:0 0 7px color-mix(in srgb,var(--green) 28%,transparent)}
+.monthly-detail-amount{width:78px;text-align:right;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;flex:0 0 78px}
+.monthly-sale-line .monthly-detail-amount{color:var(--accent)}.monthly-profit-line .monthly-detail-amount{color:var(--green)}
+@media(max-width:520px){.monthly-detail-header{padding:13px 14px}.monthly-detail-summary{font-size:10px}.monthly-detail-date{width:54px;flex-basis:54px}.monthly-detail-label{width:34px;flex-basis:34px}.monthly-detail-amount{width:68px;flex-basis:68px;font-size:9px}.monthly-detail-day{gap:6px}}
 </style>
 </head>
 <body>
@@ -810,7 +931,9 @@ function applyTheme(theme){
 function loadSavedTheme(){
   let saved = null;
   try{ saved = localStorage.getItem('shopManagerTheme'); }catch(e){}
-  applyTheme(saved || 'dark');
+  const validThemes = ['dark','dark-midnight','dark-carbon','light','light-sky','light-warm','slate','slate-blue','slate-teal'];
+  if(!validThemes.includes(saved)) saved = 'dark';
+  applyTheme(saved);
 }
 function selectTheme(theme){
   applyTheme(theme);
@@ -2028,14 +2151,13 @@ async function switchView(v){
 /* ---------------- DASHBOARD ---------------- */
 let dashboardSearch = '';
 let saleVisible = false;
-let weekSaleVisible = false;
 let profitVisible = false;
 let pricesVisible = false;
 function togglePrices(){
   pricesVisible = !pricesVisible;
   document.querySelectorAll('.cost-val').forEach(el=>{
     const cost = parseFloat(el.dataset.amt)||0;
-    el.textContent = pricesVisible ? fmtMoney(cost) : '****';
+    el.textContent = pricesVisible ? fmtMoney(cost) : '••••';
   });
 }
 let dashTotalSale = 0, dashTotalProfit = 0;
@@ -2162,134 +2284,40 @@ async function generateReportMultiInvoice(action){
   await renderReportBody();
 }
 async function renderDashboard(){
-  const today = todayStr();
-  const sales = await loadSales(today);
-  const totalSale = sales.reduce((sum,x)=>sum+(Number(x.totalSell)||0),0);
-  const totalProfit = sales.reduce((sum,x)=>sum+(Number(x.totalProfit)||0),0);
-
-  const outstandingCredit = creditEntries
-    .filter(c=>!c.paid)
-    .reduce((sum,c)=>sum+Math.max(0,(Number(c.amount)||0)-getCreditPaidAmount(c)),0);
-  const pendingRepairs = repairJobs.filter(j=>j.status==='pending');
-  const overdueRepairs = pendingRepairs.filter(j=>j.promisedDate && j.promisedDate < today);
-  const outOfStock = items.filter(i=>(Number(i.qty)||0)<=0);
-  const lowStock = items.filter(i=>(Number(i.qty)||0)>0 && (Number(i.qty)||0)<=2)
-    .sort((a,b)=>(Number(a.qty)||0)-(Number(b.qty)||0));
-  const inventoryUnits = items.reduce((sum,i)=>sum+(Number(i.qty)||0),0);
-
-  // Last 7 calendar days for a compact sales trend.
-  const weekDates=[];
-  const baseDate=new Date(today+'T00:00:00');
-  for(let d=6; d>=0; d--){
-    const dt=new Date(baseDate);
-    dt.setDate(dt.getDate()-d);
-    weekDates.push(dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'));
-  }
-  const weekSales = await Promise.all(weekDates.map(date=>loadSales(date)));
-  const weekTotals = weekSales.map((arr,idx)=>({
-    date:weekDates[idx],
-    sale:arr.reduce((sum,x)=>sum+(Number(x.totalSell)||0),0),
-    profit:arr.reduce((sum,x)=>sum+(Number(x.totalProfit)||0),0),
-    count:arr.length
-  }));
-  const weekSaleTotal = weekTotals.reduce((sum,x)=>sum+x.sale,0);
-  const weekProfitTotal = weekTotals.reduce((sum,x)=>sum+x.profit,0);
-  const maxWeekSale = Math.max(1,...weekTotals.map(x=>x.sale));
-
-  // Payment mix for today's sales.
-  const cashCount = sales.filter(s=>s.paymentMethod!=='credit' && s.paymentMethod!=='partial').length;
-  const creditCount = sales.filter(s=>s.paymentMethod==='credit').length;
-  const partialCount = sales.filter(s=>s.paymentMethod==='partial').length;
-
-  // Top selling items today.
-  const topMap={};
-  sales.forEach(s=>{
-    const key=s.name||'Unknown';
-    if(!topMap[key]) topMap[key]={name:key,qty:0,total:0};
-    topMap[key].qty += Number(s.qty)||0;
-    topMap[key].total += Number(s.totalSell)||0;
-  });
-  const topSelling=Object.values(topMap).sort((a,b)=>b.qty-a.qty).slice(0,5);
+  const sales = await loadSales(todayStr());
+  dashTotalSale = sales.reduce((s,x)=>s+x.totalSell,0);
+  dashTotalProfit = sales.reduce((s,x)=>s+x.totalProfit,0);
+  const totalSale = dashTotalSale, totalProfit = dashTotalProfit;
+  const lowStock = items.filter(i=>i.qty<=2).sort((a,b)=>(a.qty===0?1:0)-(b.qty===0?1:0));
 
   let html = `
     <div class="search-wrap">
-      <input id="dashSearchInput" placeholder="Search item, model, customer name or phone" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <input id="dashSearchInput" placeholder="Search item, model, customer, repair job or invoice #" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <button type="button" class="clear-btn" id="dashClearBtn" onclick="clearDashSearch()" style="display:${dashboardSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="dashMicBtn" onclick="startVoiceSearch('dash')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
     </div>
     <div id="dashSearchResults"></div>
 
-    <div class="dash-kpi-grid dash-kpi-grid-2">
-      <div class="dash-kpi sale-kpi" onclick="toggleSaleValue()" title="Tap to show/hide today's sale">
-        <div class="dash-kpi-label">Today's Sale</div>
-        <div class="dash-kpi-value">${saleVisible?fmtMoney(totalSale):'******'}</div>
-        <div class="dash-kpi-note">${saleVisible?'Tap to hide':'Tap to reveal'} · ${sales.length} sale entries</div>
+    <div class="register">
+      <div class="reg-cell sale" onclick="toggleSaleValue()" style="cursor:pointer">
+        <div class="lbl">Today's Sale</div>
+        <div class="val" id="regSaleVal">${saleVisible?fmtMoney(totalSale):'••••••'}</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:4px;">${saleVisible?'':'Tap to reveal'}</div>
       </div>
-      <div class="dash-kpi profit-kpi" onclick="toggleProfitValue()" title="Tap to show/hide today's profit">
-        <div class="dash-kpi-label">Today's Profit</div>
-        <div class="dash-kpi-value" id="dashProfitKpi">${profitVisible?fmtMoney(totalProfit):'******'}</div>
-        <div class="dash-kpi-note" id="dashProfitKpiNote">${profitVisible?'Tap to hide':'Tap to reveal'}</div>
-      </div>
-    </div>
-
-    <div class="dash-quick-grid">
-      <button class="dash-quick" onclick="switchView('sale')"><span>＋</span><b>New Sale</b><small>Make a bill</small></button>
-      <button class="dash-quick" onclick="switchView('repairJobs')"><span>🔧</span><b>Repairs</b><small>${pendingRepairs.length} pending</small></button>
-      <button class="dash-quick" onclick="switchView('credit')"><span>📒</span><b>Udhaar</b><small>${fmtMoney(outstandingCredit)} due</small></button>
-    </div>
-
-    <div class="dash-alert-grid">
-      <div class="dash-alert-card ${outstandingCredit>0?'attention':''}" onclick="switchView('credit')">
-        <div class="dash-alert-icon">📒</div>
-        <div><div class="dash-alert-title">Outstanding Udhaar</div><div class="dash-alert-value">${fmtMoney(outstandingCredit)}</div><div class="dash-alert-note">Tap to open credit ledger</div></div>
-      </div>
-      <div class="dash-alert-card ${pendingRepairs.length>0?'attention':''}" onclick="switchView('repairJobs')">
-        <div class="dash-alert-icon">🔧</div>
-        <div><div class="dash-alert-title">Pending Repairs</div><div class="dash-alert-value">${pendingRepairs.length}</div><div class="dash-alert-note">${overdueRepairs.length} overdue</div></div>
-      </div>
-      <div class="dash-alert-card ${outOfStock.length>0?'danger':''}" onclick="switchView('inventory')">
-        <div class="dash-alert-icon">📦</div>
-        <div><div class="dash-alert-title">Stock Alert</div><div class="dash-alert-value">${outOfStock.length} out · ${lowStock.length} low</div><div class="dash-alert-note">${inventoryUnits} total units in stock</div></div>
+      <div class="reg-divider"></div>
+      <div class="reg-cell profit" onclick="toggleProfitValue()" style="cursor:pointer">
+        <div class="lbl">Today's Profit</div>
+        <div class="val" id="regProfitVal">${profitVisible?fmtMoney(totalProfit):'••••••'}</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:4px;">${profitVisible?'':'Tap to reveal'}</div>
       </div>
     </div>
 
-    <div class="dash-two-col">
-      <div class="dash-panel dash-private-panel" onclick="toggleWeekSaleValue()" title="Tap to show/hide 7-day sales" style="cursor:pointer">
-        <div class="dash-panel-head"><div><b>7-Day Sales</b><small>${weekSaleVisible?'Tap to hide':'Tap to reveal'}</small></div><strong>${weekSaleVisible?fmtMoney(weekSaleTotal):'******'}</strong></div>
-        <div class="dash-bars" style="${weekSaleVisible?'':'filter:blur(7px); opacity:.45;'}">
-          ${weekTotals.map(x=>`<div class="dash-bar-row"><span>${fmtDayMon(x.date)}</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${weekSaleVisible?Math.max(0,Math.round((x.sale/maxWeekSale)*100)):18}%"></div></div><b>${weekSaleVisible?fmtMoney(x.sale):'******'}</b></div>`).join('')}
-        </div>
-        <div class="dash-panel-foot">7-day gross profit: <b id="dashWeekProfit">${profitVisible?fmtMoney(weekProfitTotal):'******'}</b></div>
-      </div>
-
-      <div class="dash-panel">
-        <div class="dash-panel-head"><div><b>Today's Payment Mix</b><small>${sales.length} entries</small></div><strong>${fmtMoney(totalSale)}</strong></div>
-        <div class="dash-mix-row"><span>Cash / other</span><b>${cashCount}</b></div>
-        <div class="dash-mix-row"><span>Udhaar</span><b>${creditCount}</b></div>
-        <div class="dash-mix-row"><span>Partial</span><b>${partialCount}</b></div>
-        <div class="dash-panel-foot">Counts are based on today's sale entries.</div>
-      </div>
-    </div>
-
-    <div class="dash-two-col">
-      <div class="dash-panel">
-        <div class="dash-panel-head"><div><b>Top Selling Today</b><small>By quantity</small></div></div>
-        ${topSelling.length===0 ? `<div class="empty">No sales yet today.</div>` : topSelling.map((x,i)=>`<div class="dash-top-row"><span class="dash-rank">${i+1}</span><div class="item-info"><div class="item-name">${x.name}</div><div class="item-cat">${x.qty} unit${x.qty===1?'':'s'} sold</div></div><b>${fmtMoney(x.total)}</b></div>`).join('')}
-      </div>
-      <div class="dash-panel">
-        <div class="dash-panel-head"><div><b>Low Stock</b><small>Needs attention</small></div><button class="secondary" style="padding:6px 10px" onclick="switchView('inventory')">View All</button></div>
-        ${outOfStock.length===0 && lowStock.length===0 ? `<div class="empty">All items are well stocked 👍</div>` : ''}
-        ${outOfStock.slice(0,4).map(i=>`<div class="dash-stock-row"><div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${i.category||'Uncategorized'}</div></div><span class="badge out">Out</span></div>`).join('')}
-        ${lowStock.slice(0,4).map(i=>`<div class="dash-stock-row"><div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${i.category||'Uncategorized'}</div></div><span class="badge low">${i.qty} left</span></div>`).join('')}
-      </div>
-    </div>
-
-    <div class="section-title">Today's Sales (${sales.length})</div>
+    <div class="section-title">Items Sold Today (${sales.length})</div>
   `;
-
   if(sales.length===0){
-    html += `<div class="empty">No sales yet today.<br>Tap <b>New Sale</b> above or the + button below to add a sale.</div>`;
+    html += `<div class="empty">No sales yet today.<br>Tap the + button below to add a sale.</div>`;
   } else {
     html += `<div id="multiInvoiceBar" style="display:${selectedSaleIds.size>0?'flex':'none'}; gap:10px; margin-bottom:10px;">
       <button class="primary" style="flex:1" onclick="openMultiInvoiceModal()">🖨️ Combine Invoice (<span id="selCount">${selectedSaleIds.size}</span>)</button>
@@ -2306,26 +2334,36 @@ async function renderDashboard(){
           <div><div>${s.name} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}</div></div>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:10px;">
-          <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '****'}</div></div>
-          <button class="icon-btn" style="padding:4px" title="Edit Sale" onclick="openEditSaleModal('${today}','${s.id}')">
+          <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '••••'}</div></div>
+          <button class="icon-btn" style="padding:4px" title="Edit Sale" onclick="openEditSaleModal('${todayStr()}','${s.id}')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
           </button>
-          <button class="icon-btn" style="padding:4px" title="Print Invoice" onclick="openInvoiceModal('${today}','${s.id}')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5h-2"/><path d="M6 14h12v8H6z"/></svg>
+          <button class="icon-btn" style="padding:4px" title="Print Invoice" onclick="openInvoiceModal('${todayStr()}','${s.id}')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
           </button>
-          <button class="danger-text" style="padding:4px" onclick="confirmDeleteSale('${today}','${s.id}')">✕</button>
+          <button class="danger-text" style="padding:4px" onclick="confirmDeleteSale('${todayStr()}','${s.id}')">✕</button>
         </div>
       </div>`;
     });
     html += '</div>';
   }
 
-  document.getElementById('view').innerHTML = html;
-  const searchInput=document.getElementById('dashSearchInput');
-  if(searchInput){
-    searchInput.focus();
-    searchInput.selectionStart = searchInput.selectionEnd = dashboardSearch.length;
+  html += `<div class="section-title">Low Stock Alert</div>`;
+  if(lowStock.length===0){
+    html += `<div class="empty">All items are well stocked 👍</div>`;
+  } else {
+    html += '<div class="card">';
+    lowStock.forEach(i=>{
+      html += `<div class="item-row" style="padding:6px 0">
+        <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${i.category}</div></div>
+        <span class="badge ${i.qty===0?'out':'low'}">${i.qty===0?'Out':i.qty+' left'}</span>
+      </div>`;
+    });
+    html += '</div>';
   }
+  document.getElementById('view').innerHTML = html;
+  document.getElementById('dashSearchInput').focus();
+  document.getElementById('dashSearchInput').selectionStart = document.getElementById('dashSearchInput').selectionEnd = dashboardSearch.length;
   renderDashSearchResults();
 }
 function renderDashSearchResults(){
@@ -2347,8 +2385,24 @@ function renderDashSearchResults(){
     return nameMatch || modelMatch;
   });
 
-  if(customerMatches.length===0 && itemMatches.length===0){
-    box.innerHTML = `<div class="empty" style="padding:20px">No item or customer found for "${dashboardSearch}".</div>`;
+  const repairMatches = repairJobs.filter(j=>{
+    const nameMatch = fuzzyTextMatch(j.customerName||'', q);
+    const modelMatch = fuzzyTextMatch(j.mobileModel||'', q);
+    const phoneDigits = (j.phone||'').replace(/\D/g,'');
+    const phoneMatch = qDigits.length>=3 && phoneDigits.includes(qDigits);
+    return nameMatch || modelMatch || phoneMatch;
+  }).sort((a,b)=> (a.status==='pending'?0:1) - (b.status==='pending'?0:1));
+
+  const invoiceMatches = (invoicesCache||[]).filter(inv=>{
+    const nameMatch = fuzzyTextMatch(inv.customerName||'', q);
+    const mobileDigits = (inv.customerMobile||'').replace(/\D/g,'');
+    const phoneMatch = qDigits.length>=3 && mobileDigits.includes(qDigits);
+    const invNumMatch = qDigits.length>=2 && String(inv.invoiceNumber).includes(qDigits);
+    return nameMatch || phoneMatch || invNumMatch;
+  }).slice(0,15);
+
+  if(customerMatches.length===0 && itemMatches.length===0 && repairMatches.length===0 && invoiceMatches.length===0){
+    box.innerHTML = `<div class="empty" style="padding:20px">No results found for "${dashboardSearch}".</div>`;
     return;
   }
 
@@ -2375,45 +2429,78 @@ function renderDashSearchResults(){
           </div>
           <span class="badge ${badgeClass}">${badgeText}</span>
         </div>
-        <button class="secondary" style="width:100%; margin-top:8px; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="primary" style="flex:1; font-size:12.5px; padding:8px;" ${i.qty===0?'disabled':''} onclick="openSaleModal('${i.id}')">${i.qty===0?'Out of Stock':'💰 Sell'}</button>
+          <button class="secondary" style="flex:1; font-size:12.5px; padding:8px;" onclick="openItemModal('${i.id}')">Edit</button>
+        </div>
       </div>`;
     }).join('') + '</div>';
   }
 
+  if(repairMatches.length>0){
+    html += `<div class="section-title">Repair Jobs</div><div class="card">` + repairMatches.map(j=>{
+      const estimate = j.estimateCharges||j.charges||0;
+      return `<div style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="${j.status==='pending' ? `openDeliverRepairModal('${j.id}')` : (j.invoiceNumber ? `openInvoiceDetailModal(${j.invoiceNumber})` : `switchView('repairJobs')`)}">
+        <div class="item-row">
+          <div class="item-info">
+            <div class="item-name">${j.mobileModel}</div>
+            <div class="item-cat">${j.customerName}${j.phone?' · '+j.phone:''}</div>
+            <div class="item-prices">Promised: <b>${j.promisedDate}</b>${estimate>0?' · Est: '+fmtMoney(estimate):''}</div>
+          </div>
+          <span class="badge ${j.status==='completed'?'ok':'low'}">${j.status==='completed'?'Delivered':'Pending'}</span>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  if(invoiceMatches.length>0){
+    html += `<div class="section-title">Invoices</div><div class="card">` + invoiceMatches.map(inv=>`
+      <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="openInvoiceDetailModal(${inv.invoiceNumber})">
+        <div class="item-info">
+          <div class="item-name">#${String(inv.invoiceNumber).padStart(5,'0')} — ${inv.customerName||'Walk-in Customer'}</div>
+          <div class="item-cat">${inv.date}</div>
+        </div>
+        <span style="font-weight:600;">${fmtMoney(inv.grandTotal)}</span>
+      </div>`).join('') + '</div>';
+  }
+
   box.innerHTML = html;
 }
-function setDashSearch(v){ dashboardSearch = v; renderDashSearchResults(); }
+function setDashSearch(v){
+  dashboardSearch = v;
+  const clearBtn = document.getElementById('dashClearBtn');
+  if(clearBtn) clearBtn.style.display = v ? 'flex' : 'none';
+  renderDashSearchResults();
+}
+function clearDashSearch(){
+  dashboardSearch = '';
+  const input = document.getElementById('dashSearchInput');
+  if(input){ input.value=''; input.focus(); }
+  const clearBtn = document.getElementById('dashClearBtn');
+  if(clearBtn) clearBtn.style.display = 'none';
+  renderDashSearchResults();
+}
 function toggleSaleValue(){
   saleVisible = !saleVisible;
   const saleEl = document.getElementById('regSaleVal');
   if(saleEl){
-    saleEl.textContent = saleVisible ? fmtMoney(dashTotalSale) : '******';
+    saleEl.textContent = saleVisible ? fmtMoney(dashTotalSale) : '••••••';
     const hint = saleEl.nextElementSibling;
     if(hint) hint.textContent = saleVisible ? '' : 'Tap to reveal';
   }
-  const dashKpi = document.querySelector('.sale-kpi .dash-kpi-value');
-  if(dashKpi) dashKpi.textContent = saleVisible ? fmtMoney(dashTotalSale) : '******';
-}
-function toggleWeekSaleValue(){
-  weekSaleVisible = !weekSaleVisible;
-  renderDashboard();
 }
 function toggleProfitValue(){
   profitVisible = !profitVisible;
   const profitEl = document.getElementById('regProfitVal');
   if(profitEl){
-    profitEl.textContent = profitVisible ? fmtMoney(dashTotalProfit) : '******';
+    profitEl.textContent = profitVisible ? fmtMoney(dashTotalProfit) : '••••••';
     const hint = profitEl.nextElementSibling;
     if(hint) hint.textContent = profitVisible ? '' : 'Tap to reveal';
   }
   document.querySelectorAll('.profit-val').forEach(el=>{
     const amt = parseFloat(el.dataset.amt)||0;
-    el.textContent = profitVisible ? '+'+fmtMoney(amt) : '****';
+    el.textContent = profitVisible ? '+'+fmtMoney(amt) : '••••';
   });
-  const dashProfitKpi = document.getElementById('dashProfitKpi');
-  if(dashProfitKpi) dashProfitKpi.textContent = profitVisible ? fmtMoney(dashTotalProfit) : '******';
-  const dashProfitNote = document.getElementById('dashProfitKpiNote');
-  if(dashProfitNote) dashProfitNote.textContent = profitVisible ? 'Tap to hide' : 'Tap to reveal';
   const trendBars = document.getElementById('trendProfitBars');
   if(trendBars) trendBars.style.filter = profitVisible ? 'none' : 'blur(6px)';
 }
@@ -2444,6 +2531,7 @@ async function renderInventory(){
 
   let html = `<div class="search-wrap">
       <input id="invSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${invSearch}" oninput="setInvSearch(this.value)">
+      <button type="button" class="clear-btn" id="invClearBtn" onclick="clearInvSearch()" style="display:${invSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="invMicBtn" onclick="startVoiceSearch('inv')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
@@ -2459,7 +2547,7 @@ async function renderInventory(){
     <div class="register" style="margin:14px 0">
       <div class="reg-cell sale" onclick="togglePrices()" style="cursor:pointer">
         <div class="lbl">${costLabel}</div>
-        <div class="val cost-val" data-amt="${filteredCost}">${pricesVisible?fmtMoney(filteredCost):'******'}</div>
+        <div class="val cost-val" data-amt="${filteredCost}">${pricesVisible?fmtMoney(filteredCost):'••••••'}</div>
         <div style="font-size:10px; color:var(--muted); margin-top:4px;">${pricesVisible?'':'Tap to reveal'}</div>
       </div>
     </div>
@@ -2496,7 +2584,7 @@ async function renderInventory(){
           <div class="item-name">${i.name}</div>
           <div class="item-cat">${catLabel}</div>
           ${sellerHtml}
-          <div class="item-prices">Cost: <b class="cost-val" data-amt="${i.cost}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(i.cost):'****'}</b> · Sell: <b>${fmtMoney(i.sell)}</b></div>
+          <div class="item-prices">Cost: <b class="cost-val" data-amt="${i.cost}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(i.cost):'••••'}</b> · Sell: <b>${fmtMoney(i.sell)}</b></div>
           ${modelsHtml}
         </div>
         <span class="badge ${badgeClass}">${badgeText}</span>
@@ -2521,6 +2609,7 @@ function setInvFilter(c){ invFilter = c; invPartTypeFilter='all'; invSubTypeFilt
 function setInvPartFilter(p){ invPartTypeFilter = p; invSubTypeFilter='all'; renderInventory(); }
 function setInvSubFilter(p){ invSubTypeFilter = p; renderInventory(); }
 function setInvSearch(v){ invSearch = v; renderInventory(); }
+function clearInvSearch(){ invSearch = ''; renderInventory(); }
 let activeRecognition = null;
 function startVoiceSearch(target){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -3246,6 +3335,7 @@ function renderItemSale(){
   let html = `
     <div class="search-wrap">
       <input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${saleItemSearch}" oninput="setSaleSearch(this.value)">
+      <button type="button" class="clear-btn" id="saleClearBtn" onclick="clearSaleSearch()" style="display:${saleItemSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="saleMicBtn" onclick="startVoiceSearch('sale')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
@@ -3553,6 +3643,7 @@ async function checkoutBill(action){
 function setSalePartFilter(p){ salePartTypeFilter = p; saleSubTypeFilter = 'all'; renderItemSale(); }
 function setSaleSubFilter(p){ saleSubTypeFilter = p; renderItemSale(); }
 function setSaleSearch(v){ saleItemSearch = v; renderItemSale(); }
+function clearSaleSearch(){ saleItemSearch = ''; renderItemSale(); }
 
 function renderServiceForm(){
   svcPaymentMethod = 'cash';
@@ -4202,6 +4293,82 @@ function renderTrendChartSVG(dateTotals){
     <div style="display:flex; align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:2px; background:var(--green); display:inline-block;"></span>Profit</div>
   </div>`;
 }
+function toggleWeeklyDailyDetail(){
+  const root=document.getElementById('weeklyDailyDetail');
+  if(!root) return;
+  const open=root.classList.toggle('open');
+  root.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const hint=root.querySelector('.weekly-detail-hint');
+  if(hint) hint.textContent=open ? 'Tap to hide all daily amounts' : 'Tap to reveal all 7 days • Sale + Profit amounts';
+}
+function renderWeeklyDailyDetail(dateTotals){
+  const maxVal=Math.max(1,...dateTotals.map(d=>Math.max(d.sale,d.profit)));
+  const rows=dateTotals.map(d=>{
+    const salePct=d.sale>0 ? Math.max(2,(d.sale/maxVal)*100) : 0;
+    const profitPct=d.profit>0 ? Math.max(2,(d.profit/maxVal)*100) : 0;
+    const day=new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+    const dateLabel=d.date.slice(8,10)+' '+new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{month:'short'});
+    return `<div class="weekly-detail-day">
+      <div class="weekly-detail-date"><b>${day}</b><span>${dateLabel}</span></div>
+      <div class="weekly-detail-metrics">
+        <div class="weekly-detail-line sale-line"><span class="metric-label">Sale</span><div class="metric-track"><div class="metric-fill" style="width:${salePct}%;"></div></div><span class="metric-amount">${fmtMoney(d.sale)}</span></div>
+        <div class="weekly-detail-line profit-line"><span class="metric-label">Profit</span><div class="metric-track"><div class="metric-fill" style="width:${profitPct}%;"></div></div><span class="metric-amount">${fmtMoney(d.profit)}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+  const totalSale=dateTotals.reduce((a,d)=>a+d.sale,0);
+  const totalProfit=dateTotals.reduce((a,d)=>a+d.profit,0);
+  return `<div id="weeklyDailyDetail" class="weekly-daily-detail" aria-expanded="false" onclick="toggleWeeklyDailyDetail()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWeeklyDailyDetail();}">
+    <div class="weekly-detail-header">
+      <div><div class="weekly-detail-title">7-Day Daily Sale & Profit</div><div class="weekly-detail-hint">Tap to reveal all 7 days • Sale + Profit amounts</div></div>
+      <div class="weekly-detail-chevron">⌄</div>
+    </div>
+    <div class="weekly-detail-content">
+      <div class="weekly-detail-summary"><span>7-Day Sale <b class="sale-text">${fmtMoney(totalSale)}</b></span><span>7-Day Profit <b class="profit-text">${fmtMoney(totalProfit)}</b></span></div>
+      ${rows}
+    </div>
+  </div>`;
+}
+
+
+function toggleMonthlyDailyDetail(){
+  const root=document.getElementById('monthlyDailyDetail');
+  if(!root) return;
+  const open=root.classList.toggle('open');
+  root.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const hint=root.querySelector('.monthly-detail-hint');
+  if(hint) hint.textContent=open ? 'Tap to hide all daily amounts' : 'Tap to reveal the complete month • Sale + Profit';
+}
+function renderMonthlyDailyDetail(dateTotals){
+  const maxVal=Math.max(1,...dateTotals.map(d=>Math.max(d.sale,d.profit)));
+  const rows=dateTotals.map(d=>{
+    const salePct=d.sale>0 ? Math.max(2,(d.sale/maxVal)*100) : 0;
+    const profitPct=d.profit>0 ? Math.max(2,(d.profit/maxVal)*100) : 0;
+    const dayNum=parseInt(d.date.slice(8,10),10);
+    const weekday=new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+    return `<div class="monthly-detail-day">
+      <div class="monthly-detail-date"><b>${dayNum}</b><span>${weekday}</span></div>
+      <div class="monthly-detail-metrics">
+        <div class="monthly-detail-line monthly-sale-line"><span class="monthly-detail-label">Sale</span><div class="monthly-track"><div class="monthly-fill" style="width:${salePct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.sale)}</span></div>
+        <div class="monthly-detail-line monthly-profit-line"><span class="monthly-detail-label">Profit</span><div class="monthly-track"><div class="monthly-fill" style="width:${profitPct}%;"></div></div><span class="monthly-detail-amount">${fmtMoney(d.profit)}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+  const totalSale=dateTotals.reduce((a,d)=>a+d.sale,0);
+  const totalProfit=dateTotals.reduce((a,d)=>a+d.profit,0);
+  const days=dateTotals.length;
+  return `<div id="monthlyDailyDetail" class="monthly-daily-detail" aria-expanded="false" onclick="toggleMonthlyDailyDetail()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMonthlyDailyDetail();}">
+    <div class="monthly-detail-header">
+      <div><div class="monthly-detail-title">${days}-Day Daily Sale & Profit</div><div class="monthly-detail-hint">Tap to reveal the complete month • Sale + Profit</div></div>
+      <div class="monthly-detail-chevron">⌄</div>
+    </div>
+    <div class="monthly-detail-content">
+      <div class="monthly-detail-summary"><span>Monthly Sale <b class="sale-text">${fmtMoney(totalSale)}</b></span><span>Monthly Profit <b class="profit-text">${fmtMoney(totalProfit)}</b></span></div>
+      ${rows}
+    </div>
+  </div>`;
+}
+
 async function renderTrendSection(sales, totalSale, totalProfit){
   let dateTotals, prevTotals, periodWord;
   if(reportPeriod==='daily'){
@@ -4241,14 +4408,18 @@ async function renderTrendSection(sales, totalSale, totalProfit){
       compareSuffix = ` (first ${elapsedDays} day${elapsedDays===1?'':'s'} of each)`;
     }
   }
+  const weeklyDetailHtml = reportPeriod==='weekly' ? renderWeeklyDailyDetail(dateTotals) : '';
+  const monthlyDetailHtml = reportPeriod==='monthly' ? renderMonthlyDailyDetail(dateTotals) : '';
   return `
     <div class="section-title">Sales & Profit Trend</div>
     <div class="card" style="padding:14px 8px 10px;">
       ${renderTrendChartSVG(dateTotals)}
     </div>
+    ${weeklyDetailHtml}
+    ${monthlyDetailHtml}
     <div class="card">
       <div class="sale-list-item"><div>Avg Daily Sale${avgLabelSuffix}</div><div class="t" style="font-weight:600; font-family:'JetBrains Mono',monospace;">${fmtMoney(avgSale)}</div></div>
-      <div class="sale-list-item"><div>Avg Daily Profit${avgLabelSuffix}</div><div class="t profit-val" data-amt="${avgProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(avgProfit):'****'}</div></div>
+      <div class="sale-list-item"><div>Avg Daily Profit${avgLabelSuffix}</div><div class="t profit-val" data-amt="${avgProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(avgProfit):'••••'}</div></div>
       <div class="sale-list-item"><div>Best Day</div><div class="t" style="font-weight:600;">${bestDay && bestDay.sale>0 ? bestDay.date+' · '+fmtMoney(bestDay.sale) : '—'}</div></div>
       <div class="sale-list-item"><div>Sale vs Previous ${periodWord}${compareSuffix}</div><div class="t" style="font-weight:600; color:${saleChange.color};">${saleChange.text}</div></div>
       <div class="sale-list-item"><div>Profit vs Previous ${periodWord}${compareSuffix}</div><div class="t" style="font-weight:600; color:${profitChange.color};">${profitChange.text}</div></div>
@@ -4264,11 +4435,11 @@ function renderCategoryBreakdown(sales){
   let html = '<div class="card">';
   buckets.forEach(cat=>{
     const amt = totals[cat]||0;
-    html += `<div class="sale-list-item"><div>${cat}</div><div class="t profit-val" data-amt="${amt}" style="color:var(--green); cursor:pointer; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:13px;" onclick="toggleProfitValue()">${profitVisible?'+'+fmtMoney(amt):'****'}</div></div>`;
+    html += `<div class="sale-list-item"><div>${cat}</div><div class="t profit-val" data-amt="${amt}" style="color:var(--green); cursor:pointer; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:13px;" onclick="toggleProfitValue()">${profitVisible?'+'+fmtMoney(amt):'••••'}</div></div>`;
   });
   const otherAmt = Object.keys(totals).filter(k=>!buckets.includes(k)).reduce((s,k)=>s+totals[k],0);
   if(otherAmt!==0){
-    html += `<div class="sale-list-item"><div>Other</div><div class="t profit-val" data-amt="${otherAmt}" style="color:var(--green); cursor:pointer; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:13px;" onclick="toggleProfitValue()">${profitVisible?'+'+fmtMoney(otherAmt):'****'}</div></div>`;
+    html += `<div class="sale-list-item"><div>Other</div><div class="t profit-val" data-amt="${otherAmt}" style="color:var(--green); cursor:pointer; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:13px;" onclick="toggleProfitValue()">${profitVisible?'+'+fmtMoney(otherAmt):'••••'}</div></div>`;
   }
   html += '</div>';
   return html;
@@ -4296,9 +4467,9 @@ function reportSearchBarHtml(){
   return `
     <div class="card" style="margin-bottom:14px;">
       <label>🔍 Search Old Sales (by item/service name or customer)</label>
-      <div style="display:flex; gap:8px;">
-        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${reportSearchQuery}" oninput="setReportSearch(this.value)" style="margin-bottom:0; flex:1;">
-        ${reportSearchQuery ? `<button type="button" onclick="clearReportSearch()" style="padding:0 16px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;">✕</button>` : ''}
+      <div class="search-wrap">
+        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${reportSearchQuery}" oninput="setReportSearch(this.value)" style="padding-right:44px;">
+        <button type="button" class="clear-btn" id="reportClearBtn" onclick="clearReportSearch()" style="right:6px; display:${reportSearchQuery?'flex':'none'}">✕</button>
       </div>
     </div>`;
 }
@@ -4494,7 +4665,7 @@ function renderAdvanceBody(sales){
       <div style="text-align:right; display:flex; align-items:center; gap:2px;">
         <div>
           <div><b>${fmtMoney(c.sale)}</b></div>
-          <div class="t profit-val" data-amt="${c.profit}" style="color:var(--green); cursor:pointer" onclick="event.stopPropagation(); toggleProfitValue()">${profitVisible ? '+'+fmtMoney(c.profit) : '****'}</div>
+          <div class="t profit-val" data-amt="${c.profit}" style="color:var(--green); cursor:pointer" onclick="event.stopPropagation(); toggleProfitValue()">${profitVisible ? '+'+fmtMoney(c.profit) : '••••'}</div>
         </div>
         ${chevron}
       </div>
@@ -4521,7 +4692,7 @@ async function renderReportBody(){
       <div class="register">
         <div class="reg-cell sale"><div class="lbl">Total Sale</div><div class="val">${fmtMoney(totalSale)}</div></div>
         <div class="reg-divider"></div>
-        <div class="reg-cell profit"><div class="lbl">Total Profit</div><div class="val profit-val" data-amt="${totalProfit}" style="cursor:pointer" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'******'}</div></div>
+        <div class="reg-cell profit"><div class="lbl">Total Profit</div><div class="val profit-val" data-amt="${totalProfit}" style="cursor:pointer" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'••••••'}</div></div>
       </div>
       ${subTabsHtml}
       ${renderAdvanceBody(sales)}
@@ -4537,7 +4708,7 @@ async function renderReportBody(){
     <div class="register">
       <div class="reg-cell sale"><div class="lbl">Total Sale</div><div class="val">${fmtMoney(totalSale)}</div></div>
       <div class="reg-divider"></div>
-      <div class="reg-cell profit"><div class="lbl">Total Profit</div><div class="val profit-val" data-amt="${totalProfit}" style="cursor:pointer" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'******'}</div></div>
+      <div class="reg-cell profit"><div class="lbl">Total Profit</div><div class="val profit-val" data-amt="${totalProfit}" style="cursor:pointer" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'••••••'}</div></div>
     </div>
     ${subTabsHtml}
     ${trendHtml}
@@ -4564,7 +4735,7 @@ async function renderReportBody(){
           <div><div>${s.name} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}${dateTag}</div></div>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:10px;">
-          <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '****'}</div></div>
+          <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '••••'}</div></div>
           <button class="icon-btn" style="padding:4px" title="Edit Sale" onclick="openEditSaleModal('${s._date}','${s.id}')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
           </button>
@@ -4711,7 +4882,7 @@ async function renderPurchases(){
             <div class="item-name">${t.name}</div>
             <div class="item-cat">${t.count} purchase entr${t.count===1?'y':'ies'}</div>
           </div>
-          <span class="badge low cost-val" data-amt="${t.total}" style="cursor:pointer">${pricesVisible?fmtMoney(t.total):'****'}</span>
+          <span class="badge low cost-val" data-amt="${t.total}" style="cursor:pointer">${pricesVisible?fmtMoney(t.total):'••••'}</span>
         </div>
       </div>
     `).join('');
@@ -5150,7 +5321,7 @@ async function renderExpense(){
     <div class="register">
       <div class="reg-cell sale" onclick="togglePrices()" style="cursor:pointer">
         <div class="lbl">Total Expenses${catLabel}${periodLabel}</div>
-        <div class="val cost-val" data-amt="${totalFiltered}">${pricesVisible?fmtMoney(totalFiltered):'******'}</div>
+        <div class="val cost-val" data-amt="${totalFiltered}">${pricesVisible?fmtMoney(totalFiltered):'••••••'}</div>
         <div style="font-size:10px; color:var(--muted); margin-top:4px;">${pricesVisible?'':'Tap to reveal'}</div>
       </div>
     </div>
@@ -5196,7 +5367,7 @@ async function renderExpense(){
           <div class="item-cat">${e.category}</div>
           <div class="item-prices">${e.date}</div>
         </div>
-        <span class="badge low cost-val" data-amt="${e.amount}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(e.amount):'****'}</span>
+        <span class="badge low cost-val" data-amt="${e.amount}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(e.amount):'••••'}</span>
       </div>
       <div style="display:flex; gap:10px; margin-top:10px;">
         <button class="danger-text" onclick="deleteExpenseEntry('${e.id}')">Delete</button>
@@ -5248,17 +5419,19 @@ async function deleteExpenseEntry(id){
 
 /* ---------------- CUSTOMERS ---------------- */
 let customerSearch = '';
-let customerTab = 'customers'; // 'customers' | 'contacts'
+let customerTab = 'customers'; // 'customers' | 'contacts' | 'report'
+function customerTabsHtml(active){
+  const tabBtn = (key,label)=> `<button class="secondary" style="flex:1; ${active===key?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="setCustomerTab('${key}')">${label}</button>`;
+  return `<div style="display:flex; gap:6px; margin-bottom:14px;">${tabBtn('customers','Customers')}${tabBtn('contacts','📱 Contacts')}${tabBtn('report','🏆 Top Customers')}</div>`;
+}
 async function renderCustomers(){
   if(customerTab==='contacts'){ renderPhoneContactsTab(); return; }
+  if(customerTab==='report'){ renderCustomerReportTab(); return; }
   const q = customerSearch.trim().toLowerCase();
   const list = customers.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).slice().sort((a,b)=>a.name.localeCompare(b.name));
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
-    <div style="display:flex; gap:8px; margin-bottom:14px;">
-      <button class="secondary" style="flex:1; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;" onclick="setCustomerTab('customers')">Customers</button>
-      <button class="secondary" style="flex:1" onclick="setCustomerTab('contacts')">📱 Phone Contacts</button>
-    </div>
+    ${customerTabsHtml('customers')}
     <input id="customerSearchInput" placeholder="Search customer name or phone" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
     <div id="customerListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openCustomerModal()">+ Add Customer</button>
@@ -5285,15 +5458,78 @@ async function renderCustomers(){
   `).join('');
 }
 function setCustomerTab(t){ customerTab=t; customerSearch=''; renderCustomers(); }
+// Top Customers report: ranks every customer with at least one recorded sale, by
+// lifetime Total Sale or Total Profit, over All Time / This Month / Last 30 Days.
+let customerReportSort = 'sale'; // 'sale' | 'profit'
+let customerReportPeriod = 'all'; // 'all' | 'month' | '30d'
+async function renderCustomerReportTab(){
+  document.getElementById('view').innerHTML = `
+    <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
+    ${customerTabsHtml('report')}
+    <div class="chips" style="margin-bottom:6px;">
+      <div class="chip ${customerReportPeriod==='all'?'active':''}" onclick="setCustomerReportPeriod('all')">All Time</div>
+      <div class="chip ${customerReportPeriod==='month'?'active':''}" onclick="setCustomerReportPeriod('month')">This Month</div>
+      <div class="chip ${customerReportPeriod==='30d'?'active':''}" onclick="setCustomerReportPeriod('30d')">Last 30 Days</div>
+    </div>
+    <div class="chips" style="margin-bottom:14px;">
+      <div class="chip ${customerReportSort==='sale'?'active':''}" onclick="setCustomerReportSort('sale')">Rank by Sale</div>
+      <div class="chip ${customerReportSort==='profit'?'active':''}" onclick="setCustomerReportSort('profit')">Rank by Profit</div>
+    </div>
+    <div id="customerReportList"><div class="empty">Loading...</div></div>
+  `;
+  const listEl = document.getElementById('customerReportList');
+  try{
+    const snapshot = await db.collection('sales').get();
+    let cutoff = null;
+    if(customerReportPeriod==='month') cutoff = todayStr().slice(0,7)+'-01';
+    else if(customerReportPeriod==='30d'){ const d=new Date(); d.setDate(d.getDate()-30); cutoff = ymd(d); }
+
+    const totals = {}; // key: customerId or lowercase name -> {name, orders, sale, profit}
+    snapshot.forEach(doc=>{
+      if(cutoff && doc.id < cutoff) return;
+      const arr = doc.data().list || [];
+      arr.forEach(s=>{
+        if(!s.customerName) return;
+        const key = s.customerId || ('name:'+s.customerName.toLowerCase());
+        if(!totals[key]) totals[key] = {name: s.customerName, orders:0, sale:0, profit:0};
+        totals[key].orders += 1;
+        totals[key].sale += (s.totalSell||0);
+        totals[key].profit += (s.totalProfit||0);
+      });
+    });
+    let ranked = Object.values(totals).sort((a,b)=> customerReportSort==='sale' ? b.sale-a.sale : b.profit-a.profit);
+
+    if(ranked.length===0){
+      listEl.innerHTML = `<div class="empty">No sales found for this period.</div>`;
+      return;
+    }
+    listEl.innerHTML = ranked.map((r,idx)=>`
+      <div class="card">
+        <div class="item-row">
+          <div class="item-info">
+            <div class="item-name">#${idx+1} · ${r.name}</div>
+            <div class="item-cat">${r.orders} order${r.orders===1?'':'s'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="cost-val" data-amt="${r.sale}" style="cursor:pointer; font-weight:600;" onclick="togglePrices()">${pricesVisible?fmtMoney(r.sale):'••••'}</div>
+            <div class="profit-val" data-amt="${r.profit}" style="cursor:pointer; color:var(--green); font-size:12px; margin-top:2px;" onclick="toggleProfitValue()">Profit: ${profitVisible?fmtMoney(r.profit):'••••'}</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    console.error(e);
+    listEl.innerHTML = `<div class="empty">Could not load report.</div>`;
+  }
+}
+function setCustomerReportSort(s){ customerReportSort=s; renderCustomerReportTab(); }
+function setCustomerReportPeriod(p){ customerReportPeriod=p; renderCustomerReportTab(); }
 function renderPhoneContactsTab(){
   const q = customerSearch.trim().toLowerCase();
   const list = phoneContacts.filter(c=>!q || c.name.toLowerCase().includes(q) || (c.phone||'').includes(q)).slice().sort((a,b)=>a.name.localeCompare(b.name));
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
-    <div style="display:flex; gap:8px; margin-bottom:14px;">
-      <button class="secondary" style="flex:1" onclick="setCustomerTab('customers')">Customers</button>
-      <button class="secondary" style="flex:1; background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;" onclick="setCustomerTab('contacts')">📱 Phone Contacts</button>
-    </div>
+    ${customerTabsHtml('contacts')}
     <p style="color:var(--muted); font-size:11.5px; margin:-6px 0 12px; line-height:1.6;">A separate directory imported from your phone — importing here does NOT add them to Customers. "Pick from Contacts" anywhere in the app searches this list. A person becomes a real Customer only once you actually record a sale/bill/job under their name.</p>
     ${contactPickerSupported ? `<button class="primary" style="width:100%; margin-bottom:14px" onclick="importAllContacts()">📥 Import from Phone</button>` : `<p style="color:var(--muted); font-size:12px;">Importing contacts isn't supported on this browser — this list only fills from imports made on a supported Android Chrome browser.</p>`}
     <input id="customerSearchInput" placeholder="Search phone contacts" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
@@ -5470,7 +5706,7 @@ async function renderCustomerDetail(id){
     summaryEl.innerHTML = `
       <div class="sale-list-item"><div>Total Orders</div><div class="t" style="font-weight:600;">${matches.length}</div></div>
       <div class="sale-list-item"><div>Total Sale (Lifetime)</div><div class="t" style="font-weight:600; font-family:'JetBrains Mono',monospace;">${fmtMoney(totalSale)}</div></div>
-      <div class="sale-list-item"><div>Total Profit (Lifetime)</div><div class="t profit-val" data-amt="${totalProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'****'}</div></div>
+      <div class="sale-list-item"><div>Total Profit (Lifetime)</div><div class="t profit-val" data-amt="${totalProfit}" style="color:var(--green); cursor:pointer; font-weight:600; font-family:'JetBrains Mono',monospace;" onclick="toggleProfitValue()">${profitVisible?fmtMoney(totalProfit):'••••'}</div></div>
     `;
 
     salesListEl.innerHTML = matches.length===0 ? `<div class="empty">No past sales linked to this customer.</div>` : matches.map(s=>`
@@ -5710,10 +5946,16 @@ function openSettingsModal(){
       </p>
 
       <div class="section-title" style="margin-top:22px">Theme</div>
-      <div style="display:flex; gap:8px; margin-bottom:14px;">
-        <button class="secondary" style="flex:1; ${currentTheme==='dark'?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="selectTheme('dark')">Dark</button>
-        <button class="secondary" style="flex:1; ${currentTheme==='light'?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="selectTheme('light')">Light</button>
-        <button class="secondary" style="flex:1; ${currentTheme==='slate'?'background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600;':''}" onclick="selectTheme('slate')">Slate</button>
+      <div class="theme-picker">
+        <button class="secondary theme-btn theme-dark ${currentTheme==='dark'?'selected':''}" onclick="selectTheme('dark')">Dark</button>
+        <button class="secondary theme-btn theme-dark-midnight ${currentTheme==='dark-midnight'?'selected':''}" onclick="selectTheme('dark-midnight')">Dark · Midnight</button>
+        <button class="secondary theme-btn theme-dark-carbon ${currentTheme==='dark-carbon'?'selected':''}" onclick="selectTheme('dark-carbon')">Dark · Carbon</button>
+        <button class="secondary theme-btn theme-light ${currentTheme==='light'?'selected':''}" onclick="selectTheme('light')">Light</button>
+        <button class="secondary theme-btn theme-light-sky ${currentTheme==='light-sky'?'selected':''}" onclick="selectTheme('light-sky')">Light · Sky</button>
+        <button class="secondary theme-btn theme-light-warm ${currentTheme==='light-warm'?'selected':''}" onclick="selectTheme('light-warm')">Light · Warm</button>
+        <button class="secondary theme-btn theme-slate ${currentTheme==='slate'?'selected':''}" onclick="selectTheme('slate')">Slate</button>
+        <button class="secondary theme-btn theme-slate-blue ${currentTheme==='slate-blue'?'selected':''}" onclick="selectTheme('slate-blue')">Slate · Blue</button>
+        <button class="secondary theme-btn theme-slate-teal ${currentTheme==='slate-teal'?'selected':''}" onclick="selectTheme('slate-teal')">Slate · Teal</button>
       </div>
       <p style="color:var(--muted); font-size:12px; margin-top:-8px; margin-bottom:14px; line-height:1.6;">
         This is just a look-and-feel preference for this device — it doesn't affect your data.
