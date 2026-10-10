@@ -2423,7 +2423,17 @@ async function renderDashboard(){
     html += '<div class="card">';
     sales.slice().reverse().forEach(s=>{
       const tag = s.isService ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">Service</span>' : (s.isPart ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">Part Repair</span>' : '');
-      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : (s.paymentMethod==='partial' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>' : '');
+      const linkedCredit = (creditEntries||[]).find(c =>
+        (c.saleId && c.saleId===s.id) ||
+        (s.invoiceNumber!=null && c.saleId==='bill-'+s.invoiceNumber)
+      );
+      const linkedPaidAmount = linkedCredit ? getCreditPaidAmount(linkedCredit) : 0;
+      const linkedRemaining = linkedCredit ? Math.max(0, Number(linkedCredit.amount||0)-linkedPaidAmount) : 0;
+      const creditTag = linkedCredit
+        ? (linkedCredit.paid || linkedRemaining<=0
+          ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">✓ Paid</span>'
+          : '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>')
+        : (s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : (s.paymentMethod==='partial' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>' : ''));
       const checked = selectedSaleIds.has(s.id) ? 'checked' : '';
       html += `<div class="sale-list-item">
         <div style="display:flex; align-items:center; gap:10px;">
@@ -3757,9 +3767,9 @@ function renderServiceForm(){
       </select>
       <label>Device / Model</label>
       <input id="svc_model" placeholder="e.g. Dell Latitude 5490 / Infinix Hot 12">
-      <div id="customNameWrap" style="display:none">
-        <label>Enter Service Name</label>
-        <input id="svc_custom_name" placeholder="e.g. Software Update">
+      <div id="customNameWrap">
+        <label>Service Description / Work Done</label>
+        <input id="svc_custom_name" placeholder="e.g. Windows 11 Installation">
       </div>
       <div id="svcSubTypeWrap" style="display:none">
         <label style="display:flex; align-items:center; justify-content:space-between;">
@@ -3825,9 +3835,19 @@ function renderQuickServiceTemplateButtons(){
       <span>${t.name}</span><span style="font-size:11px; opacity:.75;">${fmtMoney(t.defaultFee||0)}</span>
     </div>`).join('');
 }
-function applyQuickServiceTemplate(index){
+async function applyQuickServiceTemplate(index){
   const t = quickServiceTemplates[index];
   if(!t) return;
+  // Make the named quick service available in the repair-type/category list too,
+  // including templates that were saved before this fix.
+  if(SUBTYPE_SERVICE_TYPES.includes(t.type)){
+    if(!serviceSubTypes[t.type]) serviceSubTypes[t.type]=[];
+    let changed=false;
+    for(const entry of [t.subType, t.name]){
+      if(entry && !serviceSubTypes[t.type].includes(entry)){serviceSubTypes[t.type].push(entry); changed=true;}
+    }
+    if(changed) await saveServiceSubTypes();
+  }
   const typeEl = document.getElementById('svc_type');
   if(typeEl) typeEl.value = t.type || 'Other Service';
   toggleServiceFields();
@@ -3840,7 +3860,7 @@ function applyQuickServiceTemplate(index){
     subEl.value=t.subType;
   }
   const customEl=document.getElementById('svc_custom_name');
-  if(customEl) customEl.value=(t.type==='Other Service'?t.name:'');
+  if(customEl) customEl.value=t.name;
   const amountEl=document.getElementById('svc_amount');
   if(amountEl) amountEl.value=t.defaultFee||'';
   const costEl=document.getElementById('svc_part_cost');
@@ -3884,9 +3904,17 @@ async function saveQuickServiceTemplateFromModal(){
   if(defaultFee<=0){showToast('Default fee is required');return;}
   if(!quickServiceTemplates.some(t=>t.name.toLowerCase()===name.toLowerCase())) quickServiceTemplates.push({id:uid(),name,type,subType,defaultFee,defaultCost});
   else {showToast('This quick service already exists');return;}
-  if(subType && SUBTYPE_SERVICE_TYPES.includes(type)){
+  if(SUBTYPE_SERVICE_TYPES.includes(type)){
     if(!serviceSubTypes[type]) serviceSubTypes[type]=[];
-    if(!serviceSubTypes[type].includes(subType)){serviceSubTypes[type].push(subType); await saveServiceSubTypes();}
+    let subtypeListChanged = false;
+    // Keep both the repair group (e.g. Software) and the named quick service
+    // (e.g. Windows 11 Charges) available in the service category list.
+    for(const entry of [subType, name]){
+      if(entry && !serviceSubTypes[type].includes(entry)){
+        serviceSubTypes[type].push(entry); subtypeListChanged = true;
+      }
+    }
+    if(subtypeListChanged) await saveServiceSubTypes();
   }
   await saveQuickServiceTemplates();
   showToast('Quick service saved ✓');
@@ -3910,8 +3938,7 @@ function addServiceToBillCart(){
   const qty = parseInt(document.getElementById('svc_qty').value)||1;
   if(amount<=0){ showToast('Charge amount is required'); return; }
 
-  let name = (type==='Other Service' && customName) ? customName : type;
-  if(subType) name = subType;
+  let name = customName || (subType || type);
   if(partName) name = partName + ' (' + (subType || type) + ')';
   if(model) name = model + ' — ' + name;
 
@@ -3928,7 +3955,7 @@ function addServiceToBillCart(){
 }
 function toggleServiceFields(){
   const type = document.getElementById('svc_type').value;
-  document.getElementById('customNameWrap').style.display = type==='Other Service' ? 'block' : 'none';
+  document.getElementById('customNameWrap').style.display = 'block';
   document.getElementById('partFieldsWrap').style.display = SUBTYPE_SERVICE_TYPES.includes(type) ? 'block' : 'none';
   const showSub = SUBTYPE_SERVICE_TYPES.includes(type);
   document.getElementById('svcSubTypeWrap').style.display = showSub ? 'block' : 'none';
@@ -4081,8 +4108,7 @@ async function submitService(){
     return;
   }
 
-  let name = (type==='Other Service' && customName) ? customName : type;
-  if(subType) name = subType;
+  let name = customName || (subType || type);
   if(partName) name = partName + ' (' + (subType || type) + ')';
   if(model) name = model + ' — ' + name;
 
@@ -5280,8 +5306,9 @@ async function submitCreditPayment(id){
   }
   await saveCredit();
   document.querySelector('.modal-overlay').remove();
-  showToast('Payment added ✓');
+  showToast(c.paid ? 'Payment added — Udhaar fully paid ✓' : 'Payment added ✓');
   renderCredit();
+  if(currentView==='dashboard') await renderDashboard();
 }
 async function deleteCreditEntry(id){
   creditEntries = creditEntries.filter(x=>x.id!==id);
