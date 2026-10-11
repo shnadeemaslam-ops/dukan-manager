@@ -3765,8 +3765,10 @@ function renderServiceForm(){
       <select id="svc_type" onchange="toggleServiceFields()">
         ${SERVICE_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
       </select>
-      <label>Device / Model</label>
-      <input id="svc_model" placeholder="e.g. Dell Latitude 5490 / Infinix Hot 12">
+      <div id="svcModelWrap">
+        <label>Device / Model</label>
+        <input id="svc_model" placeholder="e.g. Dell Latitude 5490 / Infinix Hot 12">
+      </div>
       <div id="customNameWrap">
         <label>Service Description / Work Done</label>
         <input id="svc_custom_name" placeholder="e.g. Windows 11 Installation">
@@ -3955,7 +3957,9 @@ function addServiceToBillCart(){
 }
 function toggleServiceFields(){
   const type = document.getElementById('svc_type').value;
-  document.getElementById('customNameWrap').style.display = 'block';
+  const isDataCopyTransfer = type === 'Data Copy/Transfer';
+  document.getElementById('svcModelWrap').style.display = isDataCopyTransfer ? 'none' : 'block';
+  document.getElementById('customNameWrap').style.display = isDataCopyTransfer ? 'none' : 'block';
   document.getElementById('partFieldsWrap').style.display = SUBTYPE_SERVICE_TYPES.includes(type) ? 'block' : 'none';
   const showSub = SUBTYPE_SERVICE_TYPES.includes(type);
   document.getElementById('svcSubTypeWrap').style.display = showSub ? 'block' : 'none';
@@ -4946,7 +4950,19 @@ async function renderReportBody(){
     html += '<div class="card">';
     sales.forEach(s=>{
       const tag = s.isService ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">Service</span>' : (s.isPart ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">Part Repair</span>' : '');
-      const creditTag = s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : (s.paymentMethod==='partial' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>' : '');
+      const linkedCredit = (creditEntries||[]).find(c =>
+        (c.saleId && c.saleId===s.id) ||
+        (s.invoiceNumber!=null && c.saleId==='bill-'+s.invoiceNumber)
+      );
+      const linkedPaidAmount = linkedCredit ? getCreditPaidAmount(linkedCredit) : 0;
+      const linkedRemaining = linkedCredit ? Math.max(0, Number(linkedCredit.amount||0)-linkedPaidAmount) : 0;
+      const creditTag = linkedCredit
+        ? (linkedCredit.paid || linkedRemaining<=0
+          ? '<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">✓ Paid</span>'
+          : (linkedPaidAmount>0
+            ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>'
+            : '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>'))
+        : (s.paymentMethod==='credit' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">📒 Udhaar</span>' : (s.paymentMethod==='partial' ? '<span class="badge low" style="padding:2px 7px; font-size:10px; margin-left:4px;">🔀 Partial Udhaar</span>' : ''));
       const dateTag = reportPeriod!=='daily' ? `<span style="color:var(--muted)"> · ${s._date}</span>` : '';
       const checked = reportSelectedSales.has(`${s._date}::${s.id}`) ? 'checked' : '';
       html += `<div class="sale-list-item">
@@ -5309,6 +5325,8 @@ async function submitCreditPayment(id){
   showToast(c.paid ? 'Payment added — Udhaar fully paid ✓' : 'Payment added ✓');
   renderCredit();
   if(currentView==='dashboard') await renderDashboard();
+  if(currentView==='report') await renderReportBody();
+  if(currentView==='customerDetail' && currentCustomerId){ await renderCustomerDetail(currentCustomerId); }
 }
 async function deleteCreditEntry(id){
   creditEntries = creditEntries.filter(x=>x.id!==id);
