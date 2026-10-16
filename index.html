@@ -760,7 +760,9 @@ const INVOICE_LETTERHEAD_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABA
 /* SAFETY: remembers which cloud docs were really read. Without this, a failed/slow
    load left the built-in defaults in memory and a later save could write those defaults
    over the real data. Saves are blocked until the matching doc has loaded. */
-const loadOK = {categories:false, partTypes:false, subPartTypes:false, settings:false};
+const loadOK = {categories:false, partTypes:false, subPartTypes:false, settings:false,
+  credit:false, customers:false, repairJobs:false, expenses:false, suppliers:false, shopping:false,
+  phoneContacts:false, serviceSubTypes:false, quickServiceTemplates:false, shoppingCategories:false, security:false};
 function blockSave(k){
   if(loadOK[k]) return false;
   showToast('Data not fully loaded yet — save blocked to protect your data. Reopen the app.');
@@ -816,10 +818,12 @@ let serviceSubTypes = {
 async function loadServiceSubTypes(){
   try{
     const doc = await db.collection('shop').doc('serviceSubTypes').get();
+    loadOK.serviceSubTypes = true;
     if(doc.exists && doc.data().value) serviceSubTypes = doc.data().value;
   }catch(e){ console.error(e); }
 }
 async function saveServiceSubTypes(){
+  if(blockSave('serviceSubTypes')) return false;
   try{ await db.collection('shop').doc('serviceSubTypes').set({value: serviceSubTypes}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
@@ -827,11 +831,13 @@ let quickServiceTemplates = [];
 async function loadQuickServiceTemplates(){
   try{
     const doc = await db.collection('shop').doc('quickServiceTemplates').get();
+    loadOK.quickServiceTemplates = true;
     if(doc.exists && Array.isArray(doc.data().list)) quickServiceTemplates = doc.data().list;
     return doc.exists ? 'ok' : 'empty';
   }catch(e){ console.error(e); return 'error'; }
 }
 async function saveQuickServiceTemplates(){
+  if(blockSave('quickServiceTemplates')) return false;
   try{ await db.collection('shop').doc('quickServiceTemplates').set({list: quickServiceTemplates}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
@@ -864,14 +870,16 @@ let invFilter = 'all';
 let invReorderMode = false;
 function toggleInvReorder(){ invReorderMode = !invReorderMode; renderInventory(); }
 function escJs(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escapeHtml(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escJsAttr(v){ return escapeHtml(escJs(v==null?'':v)); }
 function renderReorderableChip(value, label, isActive, clickAction, moveLeftAction, moveRightAction){
   if(value==='all' || !invReorderMode){
-    return `<div class="chip ${isActive?'active':''}" onclick="${clickAction}">${label}</div>`;
+    return `<div class="chip ${isActive?'active':''}" onclick="${escapeHtml(clickAction)}">${escapeHtml(label)}</div>`;
   }
   return `<div class="chip ${isActive?'active':''}" style="display:flex; align-items:center; gap:6px; padding-left:8px; padding-right:8px;">
-    <span onclick="event.stopPropagation(); ${moveLeftAction}" style="cursor:pointer; font-weight:700; padding:0 2px;">‹</span>
+    <span onclick="event.stopPropagation(); ${escapeHtml(moveLeftAction)}" style="cursor:pointer; font-weight:700; padding:0 2px;">‹</span>
     <span onclick="${clickAction}">${label}</span>
-    <span onclick="event.stopPropagation(); ${moveRightAction}" style="cursor:pointer; font-weight:700; padding:0 2px;">›</span>
+    <span onclick="event.stopPropagation(); ${escapeHtml(moveRightAction)}" style="cursor:pointer; font-weight:700; padding:0 2px;">›</span>
   </div>`;
 }
 function moveCategoryOrder(name, dir){
@@ -930,14 +938,14 @@ function fmtDayMon(dateStr){
 }
 function fmtMoney(n){ return 'Rs '+Number(n).toLocaleString('en-US',{maximumFractionDigits:0}); }
 function highlightModels(models, query){
-  if(!query) return models.join(', ');
+  if(!query) return models.map(escapeHtml).join(', ');
   const q = query.trim().toLowerCase();
-  if(!q) return models.join(', ');
+  if(!q) return models.map(escapeHtml).join(', ');
   return models.map(m=>{
     if(m.toLowerCase().includes(q)){
-      return `<span style="background:var(--accent); color:var(--accent-text); padding:1px 6px; border-radius:5px; font-weight:700;">${m}</span>`;
+      return `<span style="background:var(--accent); color:var(--accent-text); padding:1px 6px; border-radius:5px; font-weight:700;">${escapeHtml(m)}</span>`;
     }
-    return m;
+    return escapeHtml(m);
   }).join(', ');
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -1059,10 +1067,12 @@ function selectTheme(theme){
 async function loadSecurity(){
   try{
     const doc = await db.collection('shop').doc('security').get();
+    loadOK.security = true;
     if(doc.exists && doc.data().value) security = doc.data().value;
   }catch(e){ console.error(e); }
 }
 async function saveSecurity(){
+  if(blockSave('security')) return;
   try{ await db.collection('shop').doc('security').set({value: security}); scheduleAutoBackup(); }catch(e){ console.error(e); }
 }
 async function sha256(text){
@@ -1119,10 +1129,12 @@ let creditEntries = [];
 async function loadCredit(){
   try{
     const doc = await db.collection('shop').doc('creditEntries').get();
+    loadOK.credit = true;
     creditEntries = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ creditEntries = []; console.error(e); }
 }
 async function saveCredit(){
+  if(blockSave('credit')) return;
   try{ await db.collection('shop').doc('creditEntries').set({list: creditEntries}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1131,10 +1143,12 @@ let shoppingList = [];
 async function loadShopping(){
   try{
     const doc = await db.collection('shop').doc('shoppingList').get();
+    loadOK.shopping = true;
     shoppingList = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ shoppingList = []; console.error(e); }
 }
 async function saveShopping(){
+  if(blockSave('shopping')) return;
   try{ await db.collection('shop').doc('shoppingList').set({list: shoppingList}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1146,10 +1160,12 @@ let shoppingCategories = ['Restock','Customer Order'];
 async function loadShoppingCategories(){
   try{
     const doc = await db.collection('shop').doc('shoppingCategories').get();
+    loadOK.shoppingCategories = true;
     if(doc.exists && doc.data().list && doc.data().list.length) shoppingCategories = doc.data().list;
   }catch(e){ console.error(e); }
 }
 async function saveShoppingCategories(){
+  if(blockSave('shoppingCategories')) return false;
   try{ await db.collection('shop').doc('shoppingCategories').set({list: shoppingCategories}); scheduleAutoBackup(); return true; }
   catch(e){ showToast('Cloud save failed — check internet connection'); return false; }
 }
@@ -1158,10 +1174,12 @@ let expenseEntries = [];
 async function loadExpenses(){
   try{
     const doc = await db.collection('shop').doc('expenses').get();
+    loadOK.expenses = true;
     expenseEntries = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ expenseEntries = []; console.error(e); }
 }
 async function saveExpenses(){
+  if(blockSave('expenses')) return;
   try{ await db.collection('shop').doc('expenses').set({list: expenseEntries}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1171,10 +1189,12 @@ let customers = [];
 async function loadCustomers(){
   try{
     const doc = await db.collection('shop').doc('customers').get();
+    loadOK.customers = true;
     customers = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ customers = []; console.error(e); }
 }
 async function saveCustomers(){
+  if(blockSave('customers')) return;
   try{ await db.collection('shop').doc('customers').set({list: customers}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1203,10 +1223,12 @@ let phoneContacts = [];
 async function loadPhoneContacts(){
   try{
     const doc = await db.collection('shop').doc('phoneContacts').get();
+    loadOK.phoneContacts = true;
     phoneContacts = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ phoneContacts = []; console.error(e); }
 }
 async function savePhoneContacts(){
+  if(blockSave('phoneContacts')) return;
   try{ await db.collection('shop').doc('phoneContacts').set({list: phoneContacts}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1228,7 +1250,7 @@ async function findOrCreateCustomer(name, phone){
 function refreshCustomerDatalist(){
   const dl = document.getElementById('customerDatalist');
   if(!dl) return;
-  dl.innerHTML = customers.map(c=>`<option value="${c.name}">`).join('');
+  dl.innerHTML = customers.map(c=>`<option value="${escapeHtml(c.name)}">`).join('');
 }
 // Merge a duplicate customer record into an existing one with the same name —
 // re-tags every sale, credit entry, repair job, and invoice from `source` over to
@@ -1324,8 +1346,8 @@ function renderContactPickerList(q){
   listEl.innerHTML = list.map(c=>`
     <div class="item-row" style="padding:10px 0; border-bottom:1px solid var(--border,#2a2a2a); cursor:pointer;" onclick="selectPickedContact('${c.id}')">
       <div class="item-info">
-        <div class="item-name" style="font-size:13.5px;">${c.name}</div>
-        <div class="item-cat">${c.phone||''}</div>
+        <div class="item-name" style="font-size:13.5px;">${escapeHtml(c.name)}</div>
+        <div class="item-cat">${escapeHtml(c.phone||'')}</div>
       </div>
     </div>
   `).join('');
@@ -1378,10 +1400,12 @@ let repairJobs = [];
 async function loadRepairJobs(){
   try{
     const doc = await db.collection('shop').doc('repairJobs').get();
+    loadOK.repairJobs = true;
     repairJobs = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ repairJobs = []; console.error(e); }
 }
 async function saveRepairJobs(){
+  if(blockSave('repairJobs')) return;
   try{ await db.collection('shop').doc('repairJobs').set({list: repairJobs}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1391,10 +1415,12 @@ let suppliers = [];
 async function loadSuppliers(){
   try{
     const doc = await db.collection('shop').doc('suppliers').get();
+    loadOK.suppliers = true;
     suppliers = doc.exists && doc.data().list ? doc.data().list : [];
   }catch(e){ suppliers = []; console.error(e); }
 }
 async function saveSuppliers(){
+  if(blockSave('suppliers')) return;
   try{ await db.collection('shop').doc('suppliers').set({list: suppliers}); scheduleAutoBackup(); }
   catch(e){ showToast('Cloud save failed — check internet connection'); }
 }
@@ -1431,49 +1457,49 @@ function startRealtimeSync(){
 
   db.collection('shop').doc('creditEntries').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      creditEntries = doc.data().list;
+      creditEntries = doc.data().list; loadOK.credit = true;
       if(currentView==='credit'||currentView==='more') refreshCurrentView();
     }
   }, e=>console.error(e));
 
   db.collection('shop').doc('shoppingList').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      shoppingList = doc.data().list;
+      shoppingList = doc.data().list; loadOK.shopping = true;
       if(currentView==='shopping'||currentView==='more') refreshCurrentView();
     }
   }, e=>console.error(e));
 
   db.collection('shop').doc('expenses').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      expenseEntries = doc.data().list;
+      expenseEntries = doc.data().list; loadOK.expenses = true;
       if(currentView==='expense'||currentView==='more') refreshCurrentView();
     }
   }, e=>console.error(e));
 
   db.collection('shop').doc('customers').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      customers = doc.data().list;
+      customers = doc.data().list; loadOK.customers = true;
       if(currentView==='customers'||currentView==='customerDetail'||currentView==='more') refreshCurrentView();
     }
   }, e=>console.error(e));
 
   db.collection('shop').doc('repairJobs').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      repairJobs = doc.data().list;
+      repairJobs = doc.data().list; loadOK.repairJobs = true;
       if(currentView==='repairJobs'||currentView==='more') refreshCurrentView();
     }
   }, e=>console.error(e));
 
   db.collection('shop').doc('suppliers').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      suppliers = doc.data().list;
+      suppliers = doc.data().list; loadOK.suppliers = true;
       if(currentView==='purchases') refreshCurrentView();
     }
   }, e=>console.error(e));
 
   db.collection('shop').doc('phoneContacts').onSnapshot(doc=>{
     if(doc.exists && doc.data().list){
-      phoneContacts = doc.data().list;
+      phoneContacts = doc.data().list; loadOK.phoneContacts = true;
       if(currentView==='customers') refreshCurrentView();
     }
   }, e=>console.error(e));
@@ -1573,7 +1599,7 @@ async function openEditSaleModal(dateStr, saleId){
     <div class="modal">
       <h3>Edit Sale</h3>
       <label>Item / Service Name</label>
-      <input id="es_name" value="${s.name}">
+      <input id="es_name" value="${escapeHtml(s.name)}">
       <div class="row2">
         <div><label>Quantity</label><input id="es_qty" type="number" inputmode="numeric" value="${s.qty}"></div>
         <div><label>Unit Sell Price</label><input id="es_unitsell" type="number" inputmode="decimal" value="${s.unitSell}"></div>
@@ -1581,7 +1607,7 @@ async function openEditSaleModal(dateStr, saleId){
       <label>Unit Cost</label>
       <input id="es_unitcost" type="number" inputmode="decimal" value="${s.unitCost}">
       <label>Customer Name (optional)</label>
-      <input id="es_customer" list="customerDatalist" value="${s.customerName||''}" oninput="autofillCustomerPhone('es_customer','es_phone')">
+      <input id="es_customer" list="customerDatalist" value="${escapeHtml(s.customerName||'')}" oninput="autofillCustomerPhone('es_customer','es_phone')">
       <label>Customer Phone (optional)</label>
       <input id="es_phone" value="">
       ${contactPickBtn('es_customer','es_phone')}
@@ -1660,7 +1686,7 @@ function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, 
   const grandTotal = subtotal - discount;
   const rows = lineItems.map(li=>`
         <tr style="border-bottom:1px solid #ddd;">
-          <td style="padding:8px 6px;">${li.name}</td>
+          <td style="padding:8px 6px;">${escapeHtml(li.name)}</td>
           <td style="text-align:center; padding:8px 6px;">${li.qty}</td>
           <td style="text-align:right; padding:8px 6px;">${fmtMoney(li.unitSell)}</td>
           <td style="text-align:right; padding:8px 6px;">${fmtMoney(li.totalSell)}</td>
@@ -1679,8 +1705,8 @@ function buildInvoiceHTML(invoiceNumber, dateStr, customerName, customerMobile, 
             </div>
             <div style="text-align:right;">
               <div style="color:#555;">Billed To:</div>
-              <div style="font-weight:bold; font-size:13.5px;">${customerName || 'Walk-in Customer'}</div>
-              ${customerMobile ? `<div>${customerMobile}</div>` : ''}
+              <div style="font-weight:bold; font-size:13.5px;">${escapeHtml(customerName || 'Walk-in Customer')}</div>
+              ${customerMobile ? `<div>${escapeHtml(customerMobile)}</div>` : ''}
             </div>
           </div>
 
@@ -1849,7 +1875,7 @@ async function renderInvoices(){
   document.getElementById('view').innerHTML = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
     <div class="search-wrap">
-      <input id="invoiceSearchInput" placeholder="Search invoice #, customer name or mobile" value="${invoiceSearchQuery}" oninput="setInvoiceSearch(this.value)">
+      <input id="invoiceSearchInput" placeholder="Search invoice #, customer name or mobile" value="${escapeHtml(invoiceSearchQuery)}" oninput="setInvoiceSearch(this.value)">
     </div>
     <div id="invoiceListArea"></div>`;
   const inp = document.getElementById('invoiceSearchInput');
@@ -1884,8 +1910,8 @@ function renderInvoiceList(){
     <div class="card" style="cursor:pointer" onclick="openInvoiceDetailModal(${inv.invoiceNumber})">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">Invoice #${String(inv.invoiceNumber).padStart(5,'0')} — ${inv.customerName || 'Walk-in Customer'}</div>
-          <div class="item-cat">${inv.date} · ${inv.items.length} item${inv.items.length===1?'':'s'}${inv.customerMobile?(' · '+inv.customerMobile):''}</div>
+          <div class="item-name">Invoice #${String(inv.invoiceNumber).padStart(5,'0')} — ${escapeHtml(inv.customerName || 'Walk-in Customer')}</div>
+          <div class="item-cat">${inv.date} · ${inv.items.length} item${inv.items.length===1?'':'s'}${escapeHtml(inv.customerMobile?(' · '+inv.customerMobile):'')}</div>
         </div>
         <span class="badge ok">${fmtMoney(inv.grandTotal)}</span>
       </div>
@@ -1900,13 +1926,13 @@ function openInvoiceDetailModal(invoiceNumber){
     <div class="modal">
       <h3>Invoice #${String(inv.invoiceNumber).padStart(5,'0')}</h3>
       <div style="color:var(--muted); font-size:13px; margin-bottom:10px;">
-        ${inv.date} · ${inv.customerName || 'Walk-in Customer'}${inv.customerMobile?(' · '+inv.customerMobile):''}
+        ${inv.date} · ${escapeHtml(inv.customerName || 'Walk-in Customer')}${escapeHtml(inv.customerMobile?(' · '+inv.customerMobile):'')}
       </div>
       <div style="max-height:200px; overflow-y:auto; margin-bottom:12px;">
         ${inv.items.map(li=>`
           <div class="item-row" style="padding:6px 0; border-bottom:1px solid var(--border);">
             <div class="item-info">
-              <div class="item-name">${li.name}</div>
+              <div class="item-name">${escapeHtml(li.name)}</div>
               <div class="item-cat">${li.qty} × ${fmtMoney(li.unitSell)}</div>
             </div>
             <div>${fmtMoney(li.totalSell)}</div>
@@ -1955,9 +1981,9 @@ function openEditInvoiceModal(invoiceNumber){
     <div class="modal">
       <h3>Edit Invoice #${String(inv.invoiceNumber).padStart(5,'0')}</h3>
       <label>Customer Name</label>
-      <input id="ei_name" value="${inv.customerName||''}">
+      <input id="ei_name" value="${escapeHtml(inv.customerName||'')}">
       <label>Customer Mobile Number</label>
-      <input id="ei_mobile" value="${inv.customerMobile||''}">
+      <input id="ei_mobile" value="${escapeHtml(inv.customerMobile||'')}">
       ${contactPickBtn('ei_name','ei_mobile')}
       <label>Discount (Rs)</label>
       <input id="ei_discount" type="number" inputmode="decimal" value="${inv.discount||0}">
@@ -2192,7 +2218,7 @@ function showLockScreen(){
   overlay.innerHTML = `
     <div style="width:100%; max-width:300px; text-align:center;">
       <div style="font-size:36px; margin-bottom:10px;">🔒</div>
-      <div style="font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:19px; margin-bottom:6px;">${settings.shopName}</div>
+      <div style="font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:19px; margin-bottom:6px;">${escapeHtml(settings.shopName)}</div>
       <p style="color:var(--muted); font-size:13px; margin-bottom:20px;">Enter password to continue</p>
       <input id="lockPasswordInput" type="password" placeholder="Password" style="text-align:center; font-size:16px;">
       <button class="primary" onclick="attemptUnlock()">Unlock</button>
@@ -2419,7 +2445,7 @@ async function renderDashboard(){
 
   let html = `
     <div class="search-wrap">
-      <input id="dashSearchInput" placeholder="Search item, model, customer, repair job or invoice #" value="${dashboardSearch}" oninput="setDashSearch(this.value)">
+      <input id="dashSearchInput" placeholder="Search item, model, customer, repair job or invoice #" value="${escapeHtml(dashboardSearch)}" oninput="setDashSearch(this.value)">
       <button type="button" class="clear-btn" id="dashClearBtn" onclick="clearDashSearch()" style="display:${dashboardSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="dashMicBtn" onclick="startVoiceSearch('dash')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
@@ -2468,7 +2494,7 @@ async function renderDashboard(){
       html += `<div class="sale-list-item">
         <div style="display:flex; align-items:center; gap:10px;">
           <input type="checkbox" ${checked} onchange="toggleSaleSelection('${s.id}')" style="width:18px; height:18px; accent-color:var(--accent); flex-shrink:0;">
-          <div><div>${s.name} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}</div></div>
+          <div><div>${escapeHtml(s.name)} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}</div></div>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:10px;">
           <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '••••'}</div></div>
@@ -2492,7 +2518,7 @@ async function renderDashboard(){
     html += '<div class="card">';
     lowStock.forEach(i=>{
       html += `<div class="item-row" style="padding:6px 0">
-        <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${i.category}</div></div>
+        <div class="item-info"><div class="item-name">${escapeHtml(i.name)}</div><div class="item-cat">${escapeHtml(i.category)}</div></div>
         <span class="badge ${i.qty===0?'out':'low'}">${i.qty===0?'Out':i.qty+' left'}</span>
       </div>`;
     });
@@ -2539,7 +2565,7 @@ function renderDashSearchResults(){
   }).slice(0,15);
 
   if(customerMatches.length===0 && itemMatches.length===0 && repairMatches.length===0 && invoiceMatches.length===0){
-    box.innerHTML = `<div class="empty" style="padding:20px">No results found for "${dashboardSearch}".</div>`;
+    box.innerHTML = `<div class="empty" style="padding:20px">No results found for "${escapeHtml(dashboardSearch)}".</div>`;
     return;
   }
 
@@ -2548,7 +2574,7 @@ function renderDashSearchResults(){
   if(customerMatches.length>0){
     html += `<div class="section-title">Customers</div><div class="card">` + customerMatches.map(c=>`
       <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="openCustomerDetail('${c.id}')">
-        <div class="item-info"><div class="item-name">${c.name}</div><div class="item-cat">${c.phone || 'No phone number'}</div></div>
+        <div class="item-info"><div class="item-name">${escapeHtml(c.name)}</div><div class="item-cat">${escapeHtml(c.phone || 'No phone number')}</div></div>
         <span style="font-size:22px; color:var(--muted)">›</span>
       </div>`).join('') + '</div>';
   }
@@ -2561,7 +2587,7 @@ function renderDashSearchResults(){
       const modelsHtml = (i.models&&i.models.length>0) ? `<div class="item-cat" style="margin-top:2px">Fits: ${highlightModels(i.models, q)}</div>` : '';
       return `<div style="padding:8px 0; border-bottom:1px solid var(--border)">
         <div class="item-row">
-          <div class="item-info"><div class="item-name">${i.name}</div><div class="item-cat">${catLabel}</div>${modelsHtml}
+          <div class="item-info"><div class="item-name">${escapeHtml(i.name)}</div><div class="item-cat">${catLabel}</div>${modelsHtml}
             <div class="item-prices">Sale Price: <b>${fmtMoney(i.sell)}</b></div>
           </div>
           <span class="badge ${badgeClass}">${badgeText}</span>
@@ -2580,8 +2606,8 @@ function renderDashSearchResults(){
       return `<div style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="${j.status==='pending' ? `openDeliverRepairModal('${j.id}')` : (j.invoiceNumber ? `openInvoiceDetailModal(${j.invoiceNumber})` : `switchView('repairJobs')`)}">
         <div class="item-row">
           <div class="item-info">
-            <div class="item-name">${j.mobileModel}</div>
-            <div class="item-cat">${j.customerName}${j.phone?' · '+j.phone:''}</div>
+            <div class="item-name">${escapeHtml(j.mobileModel)}</div>
+            <div class="item-cat">${escapeHtml(j.customerName)}${escapeHtml(j.phone?' · '+j.phone:'')}</div>
             <div class="item-prices">Promised: <b>${j.promisedDate}</b>${estimate>0?' · Est: '+fmtMoney(estimate):''}</div>
           </div>
           <span class="badge ${j.status==='completed'?'ok':'low'}">${j.status==='completed'?'Delivered':'Pending'}</span>
@@ -2594,7 +2620,7 @@ function renderDashSearchResults(){
     html += `<div class="section-title">Invoices</div><div class="card">` + invoiceMatches.map(inv=>`
       <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer" onclick="openInvoiceDetailModal(${inv.invoiceNumber})">
         <div class="item-info">
-          <div class="item-name">#${String(inv.invoiceNumber).padStart(5,'0')} — ${inv.customerName||'Walk-in Customer'}</div>
+          <div class="item-name">#${String(inv.invoiceNumber).padStart(5,'0')} — ${escapeHtml(inv.customerName||'Walk-in Customer')}</div>
           <div class="item-cat">${inv.date}</div>
         </div>
         <span style="font-weight:600;">${fmtMoney(inv.grandTotal)}</span>
@@ -2667,7 +2693,7 @@ async function renderInventory(){
   const costLabel = invSubTypeFilter!=='all' ? `Total Cost — ${invSubTypeFilter}` : (invPartTypeFilter!=='all' ? `Total Cost — ${invPartTypeFilter}` : (invFilter!=='all' ? `Total Cost — ${invFilter}` : 'Total Inventory Cost'));
 
   let html = `<div class="search-wrap">
-      <input id="invSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${invSearch}" oninput="setInvSearch(this.value)">
+      <input id="invSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${escapeHtml(invSearch)}" oninput="setInvSearch(this.value)">
       <button type="button" class="clear-btn" id="invClearBtn" onclick="clearInvSearch()" style="display:${invSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="invMicBtn" onclick="startVoiceSearch('inv')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
@@ -2712,13 +2738,13 @@ async function renderInventory(){
     const modelsHtml = (i.models&&i.models.length>0) ? `<div class="item-cat" style="margin-top:4px">Fits: ${highlightModels(i.models, q)}</div>` : '';
     const catLabel = [i.category, i.partType, i.subPartType].filter(Boolean).join(' · ');
     const latestSeller = getLatestSellerForItem(i);
-    const sellerHtml = latestSeller ? `<div class="item-cat" style="margin-top:2px; color:var(--muted);">Seller: ${latestSeller}</div>` : '';
+    const sellerHtml = latestSeller ? `<div class="item-cat" style="margin-top:2px; color:var(--muted);">Seller: ${escapeHtml(latestSeller)}</div>` : '';
     const thumbHtml = i.image ? `<img src="${i.image}" style="width:52px; height:52px; object-fit:cover; border-radius:8px; border:1px solid var(--border); flex-shrink:0;" onclick="openImageViewer('${i.image.replace(/'/g,"\\'")}')">` : '';
     return `<div class="card">
       <div class="item-row">
         ${thumbHtml}
         <div class="item-info">
-          <div class="item-name">${i.name}</div>
+          <div class="item-name">${escapeHtml(i.name)}</div>
           <div class="item-cat">${catLabel}</div>
           ${sellerHtml}
           <div class="item-prices">Cost: <b class="cost-val" data-amt="${i.cost}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(i.cost):'••••'}</b> · Sell: <b>${fmtMoney(i.sell)}</b></div>
@@ -2736,7 +2762,7 @@ async function renderInventory(){
   const listEl = document.getElementById('invList');
   const outListEl = document.getElementById('invOutList');
   if(list.length===0){
-    listEl.innerHTML = q ? `<div class="empty">No item found for "${invSearch}" — not currently in stock.</div>` : `<div class="empty">No items in this category.<br>Add a new item below.</div>`;
+    listEl.innerHTML = q ? `<div class="empty">No item found for "${escapeHtml(invSearch)}" — not currently in stock.</div>` : `<div class="empty">No items in this category.<br>Add a new item below.</div>`;
     return;
   }
   listEl.innerHTML = inStockList.length>0 ? inStockList.map(renderItemCard).join('') : `<div class="empty">Nothing in stock right now.</div>`;
@@ -2795,7 +2821,7 @@ function confirmDeleteItem(id){
     <div class="modal">
       <h3>Delete this Item?</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        "${it ? it.name : 'This item'}" will be permanently removed from Inventory. This cannot be undone.
+        "${escapeHtml(it ? it.name : 'This item')}" will be permanently removed from Inventory. This cannot be undone.
       </p>
       <button class="primary" style="background:var(--red)" onclick="deleteItem('${id}')">Yes, Delete It</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteItemOverlay').remove()">Cancel</button>
@@ -2890,7 +2916,7 @@ function openItemModal(id, defaultCategory, defaultPartType, defaultSubType){
         <div style="width:22px;"></div>
       </div>
       <label>Item Name</label>
-      <input id="f_name" value="${editing?editing.name:''}" placeholder="e.g. Type-C Charger">
+      <input id="f_name" value="${escapeHtml(editing?editing.name:'')}" placeholder="e.g. Type-C Charger">
 
       <label>Category</label>
       <select id="f_cat" onchange="checkAddNewCategory(); togglePartTypeField();"></select>
@@ -2929,7 +2955,7 @@ function openItemModal(id, defaultCategory, defaultPartType, defaultSubType){
       <label>Seller / Purchased From (optional)</label>
       <input id="f_seller" list="sellerDatalist" placeholder="e.g. Karachi Computer">
       <datalist id="sellerDatalist">
-        ${getAllSellerNames().map(n=>`<option value="${n}">`).join('')}
+        ${getAllSellerNames().map(n=>`<option value="${escapeHtml(n)}">`).join('')}
       </datalist>
       <p style="color:var(--muted); font-size:11.5px; margin:-8px 0 12px; line-height:1.6;">Typing a name here adds it to your Sellers list right away. ${editing ? 'If you also increase the Stock Quantity above, that added amount is logged as a new purchase from this seller automatically.' : 'Cost Price above will be logged as the purchase rate.'}</p>
       ${editing ? `
@@ -2954,7 +2980,7 @@ function openItemModal(id, defaultCategory, defaultPartType, defaultSubType){
 }
 function populateCategorySelect(selectedValue){
   const sel = document.getElementById('f_cat');
-  sel.innerHTML = categories.map(c=>`<option value="${c}" ${selectedValue===c?'selected':''}>${c}</option>`).join('')
+  sel.innerHTML = categories.map(c=>`<option value="${escapeHtml(c)}" ${selectedValue===c?'selected':''}>${escapeHtml(c)}</option>`).join('')
     + `<option value="__add_new__">+ Add New Category</option>`;
   document.getElementById('newCatWrap').style.display = 'none';
 }
@@ -2984,7 +3010,7 @@ function renderManageCategoriesModal(){
       <h3>Edit Categories</h3>
       ${categories.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No categories yet.</p>' : categories.map((c,idx)=>`
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-          <input id="cat_edit_${idx}" value="${c}" style="margin-bottom:0; flex:1">
+          <input id="cat_edit_${idx}" value="${escapeHtml(c)}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveCategoryRename(${idx})">Save</button>
           <button class="danger-text" onclick="confirmDeleteCategoryEntry(${idx})">Delete</button>
         </div>
@@ -3027,7 +3053,7 @@ function confirmDeleteCategoryEntry(idx){
     <div class="modal">
       <h3>Delete this Category?</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        "${name}" category will be permanently removed. This cannot be undone.
+        "${escapeHtml(name)}" category will be permanently removed. This cannot be undone.
       </p>
       <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteCatConfirmOverlay').remove(); deleteCategoryEntry(${idx})">Yes, Delete It</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteCatConfirmOverlay').remove()">Cancel</button>
@@ -3078,7 +3104,7 @@ function showCategorySyncWarning(idx, newVal){
     <div class="modal">
       <h3 style="color:var(--red)">Save Failed — Not Synced</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        "${newVal}" is showing on this screen, but it did NOT save to the cloud — your internet connection may be weak or offline. If you close the app now, this name change will be lost and the old name will come back.
+        "${escapeHtml(newVal)}" is showing on this screen, but it did NOT save to the cloud — your internet connection may be weak or offline. If you close the app now, this name change will be lost and the old name will come back.
       </p>
       <button class="primary" onclick="document.getElementById('catSyncWarnOverlay').remove(); saveCategoryRenameRetry(${idx})">Retry Save</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('catSyncWarnOverlay').remove()">I'll Fix Internet & Retry Later</button>
@@ -3112,7 +3138,7 @@ function populatePartTypeSelect(selectedValue){
   const cat = document.getElementById('f_cat').value;
   const list = partTypes[cat] || [];
   const sel = document.getElementById('f_parttype');
-  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${p}" ${selectedValue===p?'selected':''}>${p}</option>`).join('')
+  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${escapeHtml(p)}" ${selectedValue===p?'selected':''}>${escapeHtml(p)}</option>`).join('')
     + `<option value="__add_new__">+ Add New Sub-Category</option>`;
   document.getElementById('newPartTypeWrap').style.display = 'none';
 }
@@ -3144,12 +3170,12 @@ function renderManageCatModal(cat){
   overlay.id = 'manageCatOverlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${cat} — Edit Sub-Categories</h3>
+      <h3>${escapeHtml(cat)} — Edit Sub-Categories</h3>
       ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No sub-categories yet.</p>' : list.map((p,idx)=>`
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-          <input id="pt_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
-          <button class="secondary" style="padding:10px 12px" onclick="savePartTypeRename('${cat}',${idx})">Save</button>
-          <button class="danger-text" onclick="confirmDeletePartTypeEntry('${cat}',${idx})">Delete</button>
+          <input id="pt_edit_${idx}" value="${escapeHtml(p)}" style="margin-bottom:0; flex:1">
+          <button class="secondary" style="padding:10px 12px" onclick="savePartTypeRename('${escJsAttr(cat)}',${idx})">Save</button>
+          <button class="danger-text" onclick="confirmDeletePartTypeEntry('${escJsAttr(cat)}',${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
@@ -3185,9 +3211,9 @@ function confirmDeletePartTypeEntry(cat, idx){
     <div class="modal">
       <h3>Delete this Sub-Category?</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        "${name}" will be permanently removed. This cannot be undone.
+        "${escapeHtml(name)}" will be permanently removed. This cannot be undone.
       </p>
-      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deletePtConfirmOverlay').remove(); deletePartTypeEntry('${cat}',${idx})">Yes, Delete It</button>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deletePtConfirmOverlay').remove(); deletePartTypeEntry('${escJsAttr(cat)}',${idx})">Yes, Delete It</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deletePtConfirmOverlay').remove()">Cancel</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -3214,7 +3240,7 @@ function populateSubTypeSelect(selectedValue){
   const key = subPartKey(cat, sub);
   const list = subPartTypes[key] || [];
   const sel = document.getElementById('f_subtype');
-  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${p}" ${selectedValue===p?'selected':''}>${p}</option>`).join('')
+  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${escapeHtml(p)}" ${selectedValue===p?'selected':''}>${escapeHtml(p)}</option>`).join('')
     + `<option value="__add_new__">+ Add New Type</option>`;
   document.getElementById('newSubTypeWrap').style.display = 'none';
 }
@@ -3249,12 +3275,12 @@ function renderManageSubTypesModal(cat, sub){
   overlay.id = 'manageCatOverlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${sub} — Edit Types</h3>
+      <h3>${escapeHtml(sub)} — Edit Types</h3>
       ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No types yet.</p>' : list.map((p,idx)=>`
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-          <input id="st_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
-          <button class="secondary" style="padding:10px 12px" onclick="saveSubTypeRename('${key}',${idx})">Save</button>
-          <button class="danger-text" onclick="confirmDeleteSubTypeEntry('${key}',${idx})">Delete</button>
+          <input id="st_edit_${idx}" value="${escapeHtml(p)}" style="margin-bottom:0; flex:1">
+          <button class="secondary" style="padding:10px 12px" onclick="saveSubTypeRename('${escJsAttr(key)}',${idx})">Save</button>
+          <button class="danger-text" onclick="confirmDeleteSubTypeEntry('${escJsAttr(key)}',${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
@@ -3288,9 +3314,9 @@ function confirmDeleteSubTypeEntry(key, idx){
     <div class="modal">
       <h3>Delete this Type?</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        "${name}" will be permanently removed. This cannot be undone.
+        "${escapeHtml(name)}" will be permanently removed. This cannot be undone.
       </p>
-      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteStConfirmOverlay').remove(); deleteSubTypeEntry('${key}',${idx})">Yes, Delete It</button>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteStConfirmOverlay').remove(); deleteSubTypeEntry('${escJsAttr(key)}',${idx})">Yes, Delete It</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteStConfirmOverlay').remove()">Cancel</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -3395,7 +3421,7 @@ async function renderModelCompat(){
     <p style="color:var(--muted); font-size:12.5px; margin-bottom:12px; line-height:1.6;">
       Reference data only — these items don't show in Inventory or Sale, and don't count as stock. Use this to log which part fits which phone model.
     </p>
-    <input id="modelCompatSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${modelCompatSearch}" oninput="setModelCompatSearch(this.value)">
+    <input id="modelCompatSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${escapeHtml(modelCompatSearch)}" oninput="setModelCompatSearch(this.value)">
     <div class="chips" id="modelCompatChips"></div>
     <button class="primary" style="margin-bottom:14px" onclick="openItemModal(null, 'Model Compatibility', modelCompatSubFilter)">+ Add New Entry</button>
     <div id="modelCompatList"></div>
@@ -3406,11 +3432,11 @@ async function renderModelCompat(){
 
   const chips = document.getElementById('modelCompatChips');
   const subCats = ['all', ...(partTypes['Model Compatibility']||[])];
-  chips.innerHTML = subCats.map(p=>`<div class="chip ${modelCompatSubFilter===p?'active':''}" onclick="setModelCompatSubFilter('${p}')">${p==='all'?'All':p}</div>`).join('');
+  chips.innerHTML = subCats.map(p=>`<div class="chip ${modelCompatSubFilter===p?'active':''}" onclick="setModelCompatSubFilter('${escJsAttr(p)}')">${escapeHtml(p==='all'?'All':p)}</div>`).join('');
 
   const listEl = document.getElementById('modelCompatList');
   if(list.length===0){
-    listEl.innerHTML = q ? `<div class="empty">No entry found for "${modelCompatSearch}".</div>` : `<div class="empty">No entries yet.<br>Add one below.</div>`;
+    listEl.innerHTML = q ? `<div class="empty">No entry found for "${escapeHtml(modelCompatSearch)}".</div>` : `<div class="empty">No entries yet.<br>Add one below.</div>`;
     return;
   }
   listEl.innerHTML = list.map(i=>{
@@ -3419,7 +3445,7 @@ async function renderModelCompat(){
     return `<div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${i.name}</div>
+          <div class="item-name">${escapeHtml(i.name)}</div>
           <div class="item-cat">${catLabel}</div>
           ${modelsHtml}
         </div>
@@ -3463,7 +3489,7 @@ function billBarHtml(){
     <div class="card" style="border:1.5px solid var(--accent); margin-bottom:14px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-          <div style="font-weight:700; font-size:14px;">🧾 Bill — ${billCustomer.name || 'Walk-in Customer'}</div>
+          <div style="font-weight:700; font-size:14px;">🧾 Bill — ${escapeHtml(billCustomer.name || 'Walk-in Customer')}</div>
           <div style="color:var(--muted); font-size:12.5px; margin-top:2px;">${billCart.length} item${billCart.length===1?'':'s'} · ${fmtMoney(billCart.reduce((s,c)=>s+c.unitSell*c.qty,0))}</div>
         </div>
         <button class="secondary" style="padding:6px 10px; font-size:12px;" onclick="cancelBill()">✕ Cancel</button>
@@ -3495,13 +3521,13 @@ function renderItemSale(){
   const cats = ['all', ...categories.filter(c=>c!=='Model Compatibility')];
   let html = `
     <div class="search-wrap">
-      <input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${saleItemSearch}" oninput="setSaleSearch(this.value)">
+      <input id="saleSearchInput" placeholder="Search model (e.g. Infinix Hot 10)" value="${escapeHtml(saleItemSearch)}" oninput="setSaleSearch(this.value)">
       <button type="button" class="clear-btn" id="saleClearBtn" onclick="clearSaleSearch()" style="display:${saleItemSearch?'flex':'none'}">✕</button>
       <button type="button" class="mic-btn" id="saleMicBtn" onclick="startVoiceSearch('sale')" title="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
       </button>
     </div>
-    <div class="chips" id="saleChips">${cats.map(c=>`<div class="chip ${saleFilter===c?'active':''}" onclick="setSaleFilter('${c}')">${c==='all'?'All':c}</div>`).join('')}</div>
+    <div class="chips" id="saleChips">${cats.map(c=>`<div class="chip ${saleFilter===c?'active':''}" onclick="setSaleFilter('${escJsAttr(c)}')">${escapeHtml(c==='all'?'All':c)}</div>`).join('')}</div>
     <div class="chips" id="salePartChips" style="${saleFilter!=='all'?'':'display:none'}"></div>
     <div class="chips" id="saleSubChips" style="${(saleFilter!=='all' && salePartTypeFilter!=='all')?'':'display:none'}"></div>
     <div id="saleList"></div>`;
@@ -3511,11 +3537,11 @@ function renderItemSale(){
 
   const partChips = document.getElementById('salePartChips');
   const partCats = ['all', ...(partTypes[saleFilter]||[])];
-  partChips.innerHTML = partCats.map(p=>`<div class="chip ${salePartTypeFilter===p?'active':''}" onclick="setSalePartFilter('${p}')">${p==='all'?'All':p}</div>`).join('');
+  partChips.innerHTML = partCats.map(p=>`<div class="chip ${salePartTypeFilter===p?'active':''}" onclick="setSalePartFilter('${escJsAttr(p)}')">${escapeHtml(p==='all'?'All':p)}</div>`).join('');
 
   const subChips = document.getElementById('saleSubChips');
   const subCats = ['all', ...(subPartTypes[subPartKey(saleFilter, salePartTypeFilter)]||[])];
-  subChips.innerHTML = subCats.map(p=>`<div class="chip ${saleSubTypeFilter===p?'active':''}" onclick="setSaleSubFilter('${p}')">${p==='all'?'All':p}</div>`).join('');
+  subChips.innerHTML = subCats.map(p=>`<div class="chip ${saleSubTypeFilter===p?'active':''}" onclick="setSaleSubFilter('${escJsAttr(p)}')">${escapeHtml(p==='all'?'All':p)}</div>`).join('');
 
   const q = saleItemSearch.trim().toLowerCase();
   let list = items.filter(i=>{
@@ -3532,7 +3558,7 @@ function renderItemSale(){
   list = list.sort((a,b)=>(a.qty===0?1:0)-(b.qty===0?1:0));
   const listEl = document.getElementById('saleList');
   if(list.length===0){
-    listEl.innerHTML = q ? `<div class="empty">No item found for "${saleItemSearch}" — not currently in stock.</div>` : `<div class="empty">No items found.<br>Add items in Inventory first.</div>`;
+    listEl.innerHTML = q ? `<div class="empty">No item found for "${escapeHtml(saleItemSearch)}" — not currently in stock.</div>` : `<div class="empty">No items found.<br>Add items in Inventory first.</div>`;
     return;
   }
   listEl.innerHTML = list.map(i=>{
@@ -3546,7 +3572,7 @@ function renderItemSale(){
     return `<div class="card" style="${disabled?'opacity:.5':''}">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${i.name}</div>
+          <div class="item-name">${escapeHtml(i.name)}</div>
           <div class="item-cat">${catLabel} · ${fmtMoney(i.sell)}</div>
           ${modelsHtml}
         </div>
@@ -3601,7 +3627,7 @@ function openAddToBillModal(id){
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${it.name} — Add to Bill</h3>
+      <h3>${escapeHtml(it.name)} — Add to Bill</h3>
       <div style="text-align:center; color:var(--muted); font-size:13px; margin-bottom:10px">Available: ${available} pcs · Actual Price: ${fmtMoney(it.sell)}</div>
       <div class="qty-stepper">
         <button onclick="stepBillQty(-1,'${id}',${available})">−</button>
@@ -3646,12 +3672,12 @@ function openBillCheckoutModal(){
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>Review Bill — ${billCustomer.name || 'Walk-in Customer'}</h3>
+      <h3>Review Bill — ${escapeHtml(billCustomer.name || 'Walk-in Customer')}</h3>
       <div style="max-height:220px; overflow-y:auto; margin-bottom:14px;">
         ${billCart.map((c,idx)=>`
           <div class="item-row" style="padding:8px 0; border-bottom:1px solid var(--border);">
             <div class="item-info">
-              <div class="item-name">${c.name}${c.isService?' <span class="badge ok" style="padding:1px 6px; font-size:9.5px;">Service</span>':''}</div>
+              <div class="item-name">${escapeHtml(c.name)}${c.isService?' <span class="badge ok" style="padding:1px 6px; font-size:9.5px;">Service</span>':''}</div>
               <div class="item-cat">${c.qty} × ${fmtMoney(c.unitSell)} = ${fmtMoney(c.qty*c.unitSell)}</div>
             </div>
             <button class="danger-text" style="padding:4px 8px;" onclick="removeBillCartLine(${idx})">✕</button>
@@ -3659,9 +3685,9 @@ function openBillCheckoutModal(){
       </div>
       <div style="text-align:right; font-weight:700; font-size:15px; margin-bottom:14px;">Subtotal: ${fmtMoney(subtotal)}</div>
       <label>Customer Name ${((billCustomer.name)?'':'(optional)')}</label>
-      <input id="bill_co_name" value="${billCustomer.name||''}">
+      <input id="bill_co_name" value="${escapeHtml(billCustomer.name||'')}">
       <label>Customer Phone Number (optional)</label>
-      <input id="bill_co_phone" value="${billCustomer.phone||''}">
+      <input id="bill_co_phone" value="${escapeHtml(billCustomer.phone||'')}">
       ${contactPickBtn('bill_co_name','bill_co_phone')}
       <label>Payment</label>
       <div style="display:flex; gap:8px; margin-bottom:14px;">
@@ -3816,7 +3842,7 @@ function renderServiceForm(){
       <div id="quickServiceTemplatesWrap" class="chips" style="margin-bottom:14px; max-height:120px; overflow:auto;"></div>
       <label>Service Type</label>
       <select id="svc_type" onchange="toggleServiceFields()">
-        ${SERVICE_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+        ${SERVICE_TYPES.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
       </select>
       <label>Device / Model</label>
       <input id="svc_model" placeholder="e.g. Dell Latitude 5490 / Infinix Hot 12">
@@ -3865,7 +3891,7 @@ function renderServiceForm(){
         </div>
         <div id="svcCreditNote" style="display:none; color:var(--muted); font-size:12px; margin:-8px 0 14px;">Customer name is required for Udhaar — the pending amount will be saved to the Credit Ledger.</div>
       </div>
-      ${billActive ? `<p style="color:var(--muted); font-size:12.5px; margin:-6px 0 14px;">This will be added as a line item to the bill for <b>${billCustomer.name || 'Walk-in Customer'}</b>.</p>` : ''}
+      ${billActive ? `<p style="color:var(--muted); font-size:12.5px; margin:-6px 0 14px;">This will be added as a line item to the bill for <b>${escapeHtml(billCustomer.name || 'Walk-in Customer')}</b>.</p>` : ''}
       <button class="primary" onclick="${billActive?'addServiceToBillCart()':'submitService()'}">${billActive?'➕ Add to Bill':'Add Karein'}</button>
       <p style="color:var(--muted); font-size:12px; margin-top:12px; line-height:1.6;">
         If it's only a labour charge, leave Part Cost blank — the full amount counts as profit. If you bought a part, enter its cost and the profit will be calculated automatically.
@@ -3885,7 +3911,7 @@ function renderQuickServiceTemplateButtons(){
   }
   wrap.innerHTML = quickServiceTemplates.map((t,i)=>`
     <div class="chip" style="cursor:pointer; display:flex; align-items:center; gap:7px;" onclick="applyQuickServiceTemplate(${i})">
-      <span>${t.name}</span><span style="font-size:11px; opacity:.75;">${fmtMoney(t.defaultFee||0)}</span>
+      <span>${escapeHtml(t.name)}</span><span style="font-size:11px; opacity:.75;">${fmtMoney(t.defaultFee||0)}</span>
     </div>`).join('');
 }
 async function applyQuickServiceTemplate(index){
@@ -3933,7 +3959,7 @@ function openQuickServiceTemplatesModal(){
     <div id="quickSvcList"></div>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px;">
       <label>Service Name</label><input id="qst_name" placeholder="e.g. Windows 11 Installation">
-      <label>Service Type</label><select id="qst_type">${SERVICE_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+      <label>Service Type</label><select id="qst_type">${SERVICE_TYPES.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}</select>
       <label>Repair Type / Sub-category (optional)</label><input id="qst_subtype" placeholder="e.g. Windows / Charging / Display">
       <div class="row2"><div><label>Default Fee (Rs)</label><input id="qst_fee" type="number" inputmode="decimal" placeholder="1500"></div><div><label>Default Part Cost (Rs)</label><input id="qst_cost" type="number" inputmode="decimal" placeholder="0"></div></div>
       <button class="primary" onclick="saveQuickServiceTemplateFromModal()">+ Save Quick Service</button>
@@ -3945,7 +3971,7 @@ function openQuickServiceTemplatesModal(){
 }
 function renderQuickServiceTemplateList(){
   const el=document.getElementById('quickSvcList'); if(!el) return;
-  el.innerHTML=quickServiceTemplates.length?quickServiceTemplates.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div style="flex:1"><b>${t.name}</b><div style="font-size:11.5px;color:var(--muted)">${t.type}${t.subType?' · '+t.subType:''} · ${fmtMoney(t.defaultFee||0)}</div></div><button class="danger-text" onclick="deleteQuickServiceTemplate(${i})">Delete</button></div>`).join(''):`<div class="empty" style="padding:12px 0">No quick services saved.</div>`;
+  el.innerHTML=quickServiceTemplates.length?quickServiceTemplates.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div style="flex:1"><b>${escapeHtml(t.name)}</b><div style="font-size:11.5px;color:var(--muted)">${t.type}${escapeHtml(t.subType?' · '+t.subType:'')} · ${fmtMoney(t.defaultFee||0)}</div></div><button class="danger-text" onclick="deleteQuickServiceTemplate(${i})">Delete</button></div>`).join(''):`<div class="empty" style="padding:12px 0">No quick services saved.</div>`;
 }
 async function saveQuickServiceTemplateFromModal(){
   const name=document.getElementById('qst_name').value.trim();
@@ -4019,7 +4045,7 @@ function populateServiceSubTypeSelect(selectedValue){
   const type = document.getElementById('svc_type').value;
   const list = serviceSubTypes[type] || [];
   const sel = document.getElementById('svc_subtype');
-  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${p}" ${selectedValue===p?'selected':''}>${p}</option>`).join('')
+  sel.innerHTML = `<option value="">— None —</option>` + list.map(p=>`<option value="${escapeHtml(p)}" ${selectedValue===p?'selected':''}>${escapeHtml(p)}</option>`).join('')
     + `<option value="__add_new__">+ Add New Repair Type</option>`;
   document.getElementById('newServiceSubTypeWrap').style.display = 'none';
 }
@@ -4050,12 +4076,12 @@ function renderManageServiceSubTypesModal(type){
   overlay.id = 'manageSvcSubOverlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${type} — Edit Repair Types</h3>
+      <h3>${escapeHtml(type)} — Edit Repair Types</h3>
       ${list.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No repair types yet. Add one from the form.</p>' : list.map((p,idx)=>`
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-          <input id="svcsub_edit_${idx}" value="${p}" style="margin-bottom:0; flex:1">
-          <button class="secondary" style="padding:10px 12px" onclick="saveServiceSubTypeRename('${type}',${idx})">Save</button>
-          <button class="danger-text" onclick="confirmDeleteServiceSubTypeEntry('${type}',${idx})">Delete</button>
+          <input id="svcsub_edit_${idx}" value="${escapeHtml(p)}" style="margin-bottom:0; flex:1">
+          <button class="secondary" style="padding:10px 12px" onclick="saveServiceSubTypeRename('${escJsAttr(type)}',${idx})">Save</button>
+          <button class="danger-text" onclick="confirmDeleteServiceSubTypeEntry('${escJsAttr(type)}',${idx})">Delete</button>
         </div>
       `).join('')}
       <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageSvcSubOverlay').remove()">Close</button>
@@ -4085,9 +4111,9 @@ function confirmDeleteServiceSubTypeEntry(type, idx){
     <div class="modal">
       <h3>Delete this Repair Type?</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        "${name}" will be permanently removed. This cannot be undone.
+        "${escapeHtml(name)}" will be permanently removed. This cannot be undone.
       </p>
-      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteSvcSubConfirmOverlay').remove(); deleteServiceSubTypeEntry('${type}',${idx})">Yes, Delete It</button>
+      <button class="primary" style="background:var(--red)" onclick="document.getElementById('deleteSvcSubConfirmOverlay').remove(); deleteServiceSubTypeEntry('${escJsAttr(type)}',${idx})">Yes, Delete It</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('deleteSvcSubConfirmOverlay').remove()">Cancel</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
@@ -4215,7 +4241,7 @@ function openSaleModal(id){
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${it.name} — Confirm Sale</h3>
+      <h3>${escapeHtml(it.name)} — Confirm Sale</h3>
       <div style="text-align:center; color:var(--muted); font-size:13px; margin-bottom:10px">Available Stock: ${it.qty} pcs · Actual Price: ${fmtMoney(it.sell)}</div>
       <div class="qty-stepper">
         <button onclick="stepQty(-1,'${id}')">−</button>
@@ -4740,7 +4766,7 @@ function reportSearchBarHtml(){
     <div class="card" style="margin-bottom:14px;">
       <label>🔍 Search Old Sales (by item/service name or customer)</label>
       <div class="search-wrap">
-        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${reportSearchQuery}" oninput="setReportSearch(this.value)" style="padding-right:44px;">
+        <input id="reportSearchInput" placeholder="e.g. Infinix Hot 10 Display, or Ahmed Bhai" value="${escapeHtml(reportSearchQuery)}" oninput="setReportSearch(this.value)" style="padding-right:44px;">
         <button type="button" class="clear-btn" id="reportClearBtn" onclick="clearReportSearch()" style="right:6px; display:${reportSearchQuery?'flex':'none'}">✕</button>
       </div>
     </div>`;
@@ -4751,7 +4777,7 @@ async function renderReportSearchResults(){
   el.innerHTML = `<div class="empty">Searching...</div>`;
   const matches = await performReportSearch(reportSearchQuery);
   if(matches.length===0){
-    el.innerHTML = `<div class="empty">No past sale found for "${reportSearchQuery}"</div>`;
+    el.innerHTML = `<div class="empty">No past sale found for "${escapeHtml(reportSearchQuery)}"</div>`;
     return;
   }
   const totalAmt = matches.reduce((s,m)=>s+m.totalSell,0);
@@ -4760,7 +4786,7 @@ async function renderReportSearchResults(){
     ${matches.map(s=>`
       <div class="sale-list-item" onclick="openInvoiceModal('${s._date}','${s.id}')" style="cursor:pointer;">
         <div>
-          <div>${s.name} × ${s.qty} ${s.customerName ? '· '+s.customerName : ''}</div>
+          <div>${escapeHtml(s.name)} × ${s.qty} ${escapeHtml(s.customerName ? '· '+s.customerName : '')}</div>
           <div class="t">${s._date} · ${s.time||''}${s.isService?' · Service':''}</div>
         </div>
         <div style="text-align:right"><b>${fmtMoney(s.totalSell)}</b></div>
@@ -4897,9 +4923,9 @@ function renderAdvanceBody(sales){
 
   // Breadcrumb trail
   let crumbs = `<span onclick="breadcrumbAdvance('root')" style="cursor:pointer; ${!advanceCategory?'color:var(--text); font-weight:600;':'color:var(--accent);'}">All Categories</span>`;
-  if(advanceCategory) crumbs += ` <span style="color:var(--muted)">›</span> <span onclick="breadcrumbAdvance('category')" style="cursor:pointer; ${!advancePartType?'color:var(--text); font-weight:600;':'color:var(--accent);'}">${advanceCategory}</span>`;
-  if(advancePartType) crumbs += ` <span style="color:var(--muted)">›</span> <span onclick="breadcrumbAdvance('partType')" style="cursor:pointer; ${!advanceSubPartType?'color:var(--text); font-weight:600;':'color:var(--accent);'}">${advancePartType}</span>`;
-  if(advanceSubPartType) crumbs += ` <span style="color:var(--muted)">›</span> <span style="color:var(--text); font-weight:600;">${advanceSubPartType}</span>`;
+  if(advanceCategory) crumbs += ` <span style="color:var(--muted)">›</span> <span onclick="breadcrumbAdvance('category')" style="cursor:pointer; ${!advancePartType?'color:var(--text); font-weight:600;':'color:var(--accent);'}">${escapeHtml(advanceCategory)}</span>`;
+  if(advancePartType) crumbs += ` <span style="color:var(--muted)">›</span> <span onclick="breadcrumbAdvance('partType')" style="cursor:pointer; ${!advanceSubPartType?'color:var(--text); font-weight:600;':'color:var(--accent);'}">${escapeHtml(advancePartType)}</span>`;
+  if(advanceSubPartType) crumbs += ` <span style="color:var(--muted)">›</span> <span style="color:var(--text); font-weight:600;">${escapeHtml(advanceSubPartType)}</span>`;
 
   const titleMap = { category:'Category Ranking', partType:'Sub-Category Ranking', subPartType:'Sub-Category Ranking', product:'Product / Service Ranking' };
 
@@ -4932,7 +4958,7 @@ function renderAdvanceBody(sales){
     html += `<div class="sale-list-item" ${rowAttrs}>
       <div style="display:flex; align-items:center; gap:10px;">
         <div style="width:26px; text-align:center; font-size:${i<3?'16px':'12px'}; color:var(--muted); font-weight:600;">${rank}</div>
-        <div><div style="font-weight:600;">${c.name}${heroTag}</div><div class="t">Qty Sold: ${c.qty}</div></div>
+        <div><div style="font-weight:600;">${escapeHtml(c.name)}${heroTag}</div><div class="t">Qty Sold: ${c.qty}</div></div>
       </div>
       <div style="text-align:right; display:flex; align-items:center; gap:2px;">
         <div>
@@ -5016,7 +5042,7 @@ async function renderReportBody(){
       html += `<div class="sale-list-item">
         <div style="display:flex; align-items:center; gap:10px;">
           <input type="checkbox" ${checked} onchange="toggleReportSaleSelection('${s._date}','${s.id}')" style="width:18px; height:18px; accent-color:var(--accent); flex-shrink:0;">
-          <div><div>${s.name} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}${dateTag}</div></div>
+          <div><div>${escapeHtml(s.name)} × ${s.qty} ${tag}${creditTag}</div><div class="t">${s.time}${dateTag}</div></div>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:10px;">
           <div><div><b>${fmtMoney(s.totalSell)}</b></div><div class="t profit-val" data-amt="${s.totalProfit}" style="color:var(--green); cursor:pointer" onclick="toggleProfitValue()">${profitVisible ? '+'+fmtMoney(s.totalProfit) : '••••'}</div></div>
@@ -5163,7 +5189,7 @@ async function renderPurchases(){
       <div class="card" style="cursor:pointer" onclick="openSellerDetail('${encodeURIComponent(t.name)}')">
         <div class="item-row">
           <div class="item-info">
-            <div class="item-name">${t.name}</div>
+            <div class="item-name">${escapeHtml(t.name)}</div>
             <div class="item-cat">${t.count} purchase entr${t.count===1?'y':'ies'}</div>
           </div>
           <span class="badge low cost-val" data-amt="${t.total}" style="cursor:pointer">${pricesVisible?fmtMoney(t.total):'••••'}</span>
@@ -5190,13 +5216,13 @@ function openSellerDetail(encodedName){
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${name}</h3>
+      <h3>${escapeHtml(name)}</h3>
       <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">Total purchased: <b style="color:var(--text)">${fmtMoney(total)}</b></p>
       <div style="max-height:360px; overflow-y:auto;">
         ${rows.length===0 ? '<div class="empty">No entries.</div>' : rows.map(r=>`
           <div class="item-row" style="padding:10px 0; border-bottom:1px solid var(--border,#2a2a2a);">
             <div class="item-info">
-              <div class="item-name" style="font-size:13.5px;">${r.itemName}</div>
+              <div class="item-name" style="font-size:13.5px;">${escapeHtml(r.itemName)}</div>
               <div class="item-cat">${r.qty} x ${fmtMoney(r.rate)} = ${fmtMoney(r.qty*r.rate)}</div>
               <div class="item-prices">${r.date}</div>
             </div>
@@ -5220,7 +5246,7 @@ function renderItemPurchaseHistory(itemId){
     <div class="section-title" style="margin-top:14px;">Purchase History (by Seller)</div>
     ${rows.map(r=>`
       <div style="display:flex; justify-content:space-between; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--border,#2a2a2a);">
-        <span>${r.sellerName}</span>
+        <span>${escapeHtml(r.sellerName)}</span>
         <span>${r.qty} x ${fmtMoney(r.rate)} <span style="color:var(--muted)">(${r.date})</span></span>
       </div>
     `).join('')}
@@ -5271,8 +5297,8 @@ async function renderCredit(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name" style="cursor:pointer" onclick="goToCreditCustomer('${c.customer.replace(/'/g,"\\'")}')">${c.customer} <span style="color:var(--muted); font-size:22px; vertical-align:middle;">›</span></div>
-          <div class="item-cat">${c.description}</div>
+          <div class="item-name" style="cursor:pointer" onclick="goToCreditCustomer('${escJsAttr(c.customer)}')">${escapeHtml(c.customer)} <span style="color:var(--muted); font-size:22px; vertical-align:middle;">›</span></div>
+          <div class="item-cat">${escapeHtml(c.description)}</div>
           <div class="item-prices">Total: <b>${fmtMoney(c.amount)}</b> · Paid: <b style="color:var(--green)">${fmtMoney(paidAmt)}</b> · Remaining: <b style="color:${remaining>0?'var(--red)':'var(--green)'}">${fmtMoney(remaining)}</b></div>
           <div class="item-prices">${c.date}${c.paid?' · Fully paid on '+c.paidDate:''}</div>
           ${paymentsHtml}
@@ -5303,9 +5329,9 @@ function openCreditModal(existingId){
     <div class="modal">
       <h3>${editing ? 'Edit Credit Entry' : 'Add Credit Entry'}</h3>
       <label>Customer Name</label>
-      <input id="cr_customer" list="customerDatalist" value="${editing?editing.customer:''}" placeholder="e.g. Ahmed Bhai">
+      <input id="cr_customer" list="customerDatalist" value="${escapeHtml(editing?editing.customer:'')}" placeholder="e.g. Ahmed Bhai">
       <label>What For (item / service given)</label>
-      <input id="cr_desc" value="${editing?editing.description:''}" placeholder="e.g. Screen repair, Charger">
+      <input id="cr_desc" value="${escapeHtml(editing?editing.description:'')}" placeholder="e.g. Screen repair, Charger">
       <label>Amount Due (Rs)</label>
       <input id="cr_amount" type="number" inputmode="decimal" value="${editing?editing.amount:''}" placeholder="0">
       ${editing && editing.payments && editing.payments.length>0 ? `<p style="color:var(--muted); font-size:12px; margin:-8px 0 14px;">Already paid: ${fmtMoney(getCreditPaidAmount(editing))}. Lowering the amount below this will mark the entry as fully paid.</p>` : ''}
@@ -5347,7 +5373,7 @@ function openAddPaymentModal(id){
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${c.customer} — Add Payment</h3>
+      <h3>${escapeHtml(c.customer)} — Add Payment</h3>
       <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">Remaining balance: <b style="color:var(--text)">${fmtMoney(remaining)}</b></p>
       <label>Amount Received (Rs)</label>
       <input id="cr_payment_amount" type="number" inputmode="decimal" value="${remaining}" placeholder="0">
@@ -5402,7 +5428,7 @@ async function renderShopping(){
     </div>
     <div class="chips" style="margin-top:-6px">
       <div class="chip ${shoppingCategoryFilter==='all'?'active':''}" onclick="setShoppingCategoryFilter('all')">All Categories</div>
-      ${shoppingCategories.map(c=>`<div class="chip ${shoppingCategoryFilter===c?'active':''}" onclick="setShoppingCategoryFilter('${c.replace(/'/g,"\\'")}')">${c}</div>`).join('')}
+      ${shoppingCategories.map(c=>`<div class="chip ${shoppingCategoryFilter===c?'active':''}" onclick="setShoppingCategoryFilter('${escJsAttr(c)}')">${escapeHtml(c)}</div>`).join('')}
       <div class="chip ${shoppingCategoryFilter==='__none__'?'active':''}" onclick="setShoppingCategoryFilter('__none__')">No Category</div>
     </div>
     <button class="secondary" style="margin:-4px 0 14px; padding:8px 12px; font-size:12.5px;" onclick="openManageShoppingCategoriesModal()">✎ Manage Categories (Rename / Delete)</button>
@@ -5419,8 +5445,8 @@ async function renderShopping(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${s.itemName} ${s.category ? `<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">${s.category}</span>` : ''}</div>
-          ${s.customer ? `<div class="item-cat">For: ${s.customer}${s.customerPhone ? ' · '+s.customerPhone : ''}</div>` : ''}
+          <div class="item-name">${escapeHtml(s.itemName)} ${s.category ? `<span class="badge ok" style="padding:2px 7px; font-size:10px; margin-left:4px;">${escapeHtml(s.category)}</span>` : ''}</div>
+          ${s.customer ? `<div class="item-cat">For: ${escapeHtml(s.customer)}${escapeHtml(s.customerPhone ? ' · '+s.customerPhone : '')}</div>` : ''}
           <div class="item-prices">${s.date}${s.bought?' · Bought on '+s.boughtDate:''}</div>
         </div>
         <span class="badge ${s.bought?'ok':'low'}">${s.bought?'Bought':'Pending'}</span>
@@ -5445,7 +5471,7 @@ function openShoppingModal(existingId){
     <div class="modal">
       <h3>${editing ? 'Edit Shopping List Item' : 'Add Item to Shopping List'}</h3>
       <label>Item Name</label>
-      <input id="sh_item" value="${editing?editing.itemName:''}" placeholder="e.g. Vivo Y21 battery">
+      <input id="sh_item" value="${escapeHtml(editing?editing.itemName:'')}" placeholder="e.g. Vivo Y21 battery">
       <label>Category (optional)</label>
       <select id="sh_cat" onchange="checkAddNewShoppingCategory()"></select>
       <div id="shNewCatWrap" style="display:none">
@@ -5453,9 +5479,9 @@ function openShoppingModal(existingId){
         <button type="button" class="secondary" style="width:100%; margin-bottom:12px" onclick="confirmNewShoppingCategory()">Add Category</button>
       </div>
       <label>For Which Customer (optional)</label>
-      <input id="sh_customer" list="customerDatalist" value="${editing?editing.customer||'':''}" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('sh_customer','sh_customer_phone')">
+      <input id="sh_customer" list="customerDatalist" value="${escapeHtml(editing?editing.customer||'':'')}" placeholder="e.g. Ahmed Bhai" oninput="autofillCustomerPhone('sh_customer','sh_customer_phone')">
       <label>Customer Phone Number (optional)</label>
-      <input id="sh_customer_phone" value="${editing?editing.customerPhone||'':''}" placeholder="e.g. 0300-1234567">
+      <input id="sh_customer_phone" value="${escapeHtml(editing?editing.customerPhone||'':'')}" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('sh_customer','sh_customer_phone')}
       <button class="primary" onclick="saveShoppingItem('${editing?editing.id:''}')">${editing?'Save Changes':'Add'}</button>
     </div>`;
@@ -5468,7 +5494,7 @@ function populateShoppingCategorySelect(selectedValue){
   const sel = document.getElementById('sh_cat');
   if(!sel) return;
   sel.innerHTML = `<option value="">No category</option>` +
-    shoppingCategories.map(c=>`<option value="${c}" ${selectedValue===c?'selected':''}>${c}</option>`).join('')
+    shoppingCategories.map(c=>`<option value="${escapeHtml(c)}" ${selectedValue===c?'selected':''}>${escapeHtml(c)}</option>`).join('')
     + `<option value="__add_new__">+ Add New Category</option>`;
   document.getElementById('shNewCatWrap').style.display = 'none';
 }
@@ -5497,7 +5523,7 @@ function renderManageShoppingCategoriesModal(){
       <p style="color:var(--muted); font-size:12px; margin:-6px 0 14px;">These are separate from your Inventory categories — changes here never affect Inventory, Sale, or Reports.</p>
       ${shoppingCategories.length===0 ? '<p style="color:var(--muted); font-size:13px; margin-bottom:14px;">No categories yet.</p>' : shoppingCategories.map((c,idx)=>`
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-          <input id="sh_cat_edit_${idx}" value="${c}" style="margin-bottom:0; flex:1">
+          <input id="sh_cat_edit_${idx}" value="${escapeHtml(c)}" style="margin-bottom:0; flex:1">
           <button class="secondary" style="padding:10px 12px" onclick="saveShoppingCategoryRename(${idx})">Save</button>
           <button class="danger-text" onclick="deleteShoppingCategoryEntry(${idx})">Delete</button>
         </div>
@@ -5650,8 +5676,8 @@ async function renderExpense(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${e.description || e.category}</div>
-          <div class="item-cat">${e.category}</div>
+          <div class="item-name">${escapeHtml(e.description || e.category)}</div>
+          <div class="item-cat">${escapeHtml(e.category)}</div>
           <div class="item-prices">${e.date}</div>
         </div>
         <span class="badge low cost-val" data-amt="${e.amount}" style="cursor:pointer" onclick="togglePrices()">${pricesVisible?fmtMoney(e.amount):'••••'}</span>
@@ -5672,7 +5698,7 @@ function openExpenseModal(){
       <h3>Add Expense</h3>
       <label>Category</label>
       <select id="ex_category">
-        ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        ${EXPENSE_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
       </select>
       <label>Description</label>
       <input id="ex_desc" placeholder="e.g. Groceries, Shop rent, Electricity bill">
@@ -5719,7 +5745,7 @@ async function renderCustomers(){
   let html = `
     <button class="secondary" style="margin-bottom:14px" onclick="switchView('more')">← Back</button>
     ${customerTabsHtml('customers')}
-    <input id="customerSearchInput" placeholder="Search customer name or phone" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
+    <input id="customerSearchInput" placeholder="Search customer name or phone" value="${escapeHtml(customerSearch)}" oninput="setCustomerSearch(this.value)">
     <div id="customerListBody"></div>
     <button class="primary" style="margin-top:6px" onclick="openCustomerModal()">+ Add Customer</button>
   `;
@@ -5736,8 +5762,8 @@ async function renderCustomers(){
     <div class="card" style="cursor:pointer" onclick="openCustomerDetail('${c.id}')">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${c.name}</div>
-          <div class="item-cat">${c.phone || 'No phone number'}</div>
+          <div class="item-name">${escapeHtml(c.name)}</div>
+          <div class="item-cat">${escapeHtml(c.phone || 'No phone number')}</div>
         </div>
         <span style="font-size:22px; color:var(--muted)">›</span>
       </div>
@@ -5794,7 +5820,7 @@ async function renderCustomerReportTab(){
       <div class="card">
         <div class="item-row">
           <div class="item-info">
-            <div class="item-name">#${idx+1} · ${r.name}</div>
+            <div class="item-name">#${idx+1} · ${escapeHtml(r.name)}</div>
             <div class="item-cat">${r.orders} order${r.orders===1?'':'s'}</div>
           </div>
           <div style="text-align:right;">
@@ -5819,7 +5845,7 @@ function renderPhoneContactsTab(){
     ${customerTabsHtml('contacts')}
     <p style="color:var(--muted); font-size:11.5px; margin:-6px 0 12px; line-height:1.6;">A separate directory imported from your phone — importing here does NOT add them to Customers. "Pick from Contacts" anywhere in the app searches this list. A person becomes a real Customer only once you actually record a sale/bill/job under their name.</p>
     ${contactPickerSupported ? `<button class="primary" style="width:100%; margin-bottom:14px" onclick="importAllContacts()">📥 Import from Phone</button>` : `<p style="color:var(--muted); font-size:12px;">Importing contacts isn't supported on this browser — this list only fills from imports made on a supported Android Chrome browser.</p>`}
-    <input id="customerSearchInput" placeholder="Search phone contacts" value="${customerSearch}" oninput="setCustomerSearch(this.value)">
+    <input id="customerSearchInput" placeholder="Search phone contacts" value="${escapeHtml(customerSearch)}" oninput="setCustomerSearch(this.value)">
     <div id="customerListBody"></div>
   `;
   document.getElementById('view').innerHTML = html;
@@ -5835,8 +5861,8 @@ function renderPhoneContactsTab(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${c.name}</div>
-          <div class="item-cat">${c.phone || 'No phone number'}</div>
+          <div class="item-name">${escapeHtml(c.name)}</div>
+          <div class="item-cat">${escapeHtml(c.phone || 'No phone number')}</div>
         </div>
         <span style="cursor:pointer; font-size:18px; color:var(--red);" onclick="deletePhoneContact('${c.id}')">🗑</span>
       </div>
@@ -5857,9 +5883,9 @@ function openCustomerModal(existingId){
     <div class="modal">
       <h3>${editing ? 'Edit Customer' : 'Add Customer'}</h3>
       <label>Customer Name</label>
-      <input id="cu_name" value="${editing?editing.name:''}" placeholder="e.g. Ahmed Bhai">
+      <input id="cu_name" value="${escapeHtml(editing?editing.name:'')}" placeholder="e.g. Ahmed Bhai">
       <label>Phone Number</label>
-      <input id="cu_phone" value="${editing?editing.phone:''}" placeholder="e.g. 0300-1234567">
+      <input id="cu_phone" value="${escapeHtml(editing?editing.phone:'')}" placeholder="e.g. 0300-1234567">
       ${contactPickBtn('cu_name','cu_phone')}
       <button class="primary" onclick="saveCustomerEntry('${editing?editing.id:''}')">${editing?'Update':'Add'}</button>
     </div>`;
@@ -5923,8 +5949,8 @@ async function renderCustomerDetail(id){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name" style="font-size:18px">${c.name}</div>
-          <div class="item-cat">${c.phone || 'No phone number'}</div>
+          <div class="item-name" style="font-size:18px">${escapeHtml(c.name)}</div>
+          <div class="item-cat">${escapeHtml(c.phone || 'No phone number')}</div>
         </div>
       </div>
       <div style="display:flex; gap:10px; margin-top:12px;">
@@ -5951,7 +5977,7 @@ async function renderCustomerDetail(id){
     return `<div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${e.description}</div>
+          <div class="item-name">${escapeHtml(e.description)}</div>
           <div class="item-cat">${e.date}${e.paid?' · Fully paid on '+e.paidDate:''}</div>
         </div>
         <span class="badge ${e.paid?'ok':'low'}">${e.paid?'Paid':fmtMoney(remaining)}</span>
@@ -5964,8 +5990,8 @@ async function renderCustomerDetail(id){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${j.mobileModel}</div>
-          <div class="item-cat">${j.note || ''}</div>
+          <div class="item-name">${escapeHtml(j.mobileModel)}</div>
+          <div class="item-cat">${escapeHtml(j.note || '')}</div>
           <div class="item-prices">Promised: ${j.promisedDate}${j.status==='completed'?' · Delivered on '+j.completedDate:''}</div>
         </div>
         <span class="badge ${j.status==='completed'?'ok':'low'}">${j.status==='completed'?'Delivered':(j.charges>0?fmtMoney(j.charges):'TBD')}</span>
@@ -5998,7 +6024,7 @@ async function renderCustomerDetail(id){
 
     salesListEl.innerHTML = matches.length===0 ? `<div class="empty">No past sales linked to this customer.</div>` : matches.map(s=>`
       <div class="sale-list-item">
-        <div><div>${s.name} × ${s.qty}</div><div class="t">${s._date} · ${s.time}</div></div>
+        <div><div>${escapeHtml(s.name)} × ${s.qty}</div><div class="t">${s._date} · ${s.time}</div></div>
         <div style="text-align:right"><b>${fmtMoney(s.totalSell)}</b></div>
       </div>
     `).join('');
@@ -6042,9 +6068,9 @@ async function renderRepairJobs(){
     <div class="card">
       <div class="item-row">
         <div class="item-info">
-          <div class="item-name">${j.mobileModel}</div>
-          <div class="item-cat">${j.customerName}${j.phone?' · '+j.phone:''}</div>
-          ${j.note ? `<div class="item-cat" style="margin-top:2px">${j.note}</div>` : ''}
+          <div class="item-name">${escapeHtml(j.mobileModel)}</div>
+          <div class="item-cat">${escapeHtml(j.customerName)}${escapeHtml(j.phone?' · '+j.phone:'')}</div>
+          ${j.note ? `<div class="item-cat" style="margin-top:2px">${escapeHtml(j.note)}</div>` : ''}
           <div class="item-prices">Promised: <b>${j.promisedDate}</b>${j.status==='completed'?' · Delivered on '+j.completedDate:''}</div>
           ${j.status==='pending' && (advance>0 || estimate>0) ? `<div class="item-prices" style="margin-top:4px;">${advance>0?`Advance: <b>${fmtMoney(advance)}</b>`:''}${advance>0 && estimate>0?' · ':''}${estimate>0?`Est: <b>${fmtMoney(estimate)}</b>`:''}${estimate>0?` · Remaining: <b style="color:var(--accent)">${fmtMoney(remaining)}</b>`:''}</div>` : ''}
         </div>
@@ -6146,8 +6172,8 @@ function openDeliverRepairModal(id){
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3>${j.customerName} — Deliver &amp; Collect Payment</h3>
-      <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">${j.mobileModel}${j.note?' — '+j.note:''}</p>
+      <h3>${escapeHtml(j.customerName)} — Deliver &amp; Collect Payment</h3>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">${escapeHtml(j.mobileModel)}${escapeHtml(j.note?' — '+j.note:'')}</p>
       ${advance>0 ? `<p style="color:var(--muted); font-size:13px; margin-bottom:10px;">Advance already in hand: <b style="color:var(--text)">${fmtMoney(advance)}</b> — include this in the total below.</p>` : ''}
       <label>Final Total Bill Amount (Rs)</label>
       <input id="dr_charges" type="number" inputmode="decimal" value="${estimate||''}" placeholder="0">
@@ -6226,7 +6252,7 @@ function openSettingsModal(){
     <div class="modal">
       <h3>Shop Settings</h3>
       <label>Shop Name</label>
-      <input id="f_shopname" value="${settings.shopName}">
+      <input id="f_shopname" value="${escapeHtml(settings.shopName)}">
       <button class="primary" onclick="saveShopName()">Save</button>
       <p style="color:var(--muted); font-size:12px; margin-top:14px; line-height:1.6;">
         Note: This data is now synced live via the cloud — any change made on one device (mobile or laptop) appears automatically on all others within a few seconds, as long as there's an internet connection.
@@ -6438,7 +6464,7 @@ async function refreshBackupFolderStatus(){
   }
   const handle = await getSavedBackupFolderHandle();
   if(handle){
-    el.innerHTML = `📁 Backup folder set: <b>${handle.name}</b> &nbsp;·&nbsp; <span style="color:var(--accent); cursor:pointer; font-weight:600;" onclick="changeBackupFolder()">Change</span>`;
+    el.innerHTML = `📁 Backup folder set: <b>${escapeHtml(handle.name)}</b> &nbsp;·&nbsp; <span style="color:var(--accent); cursor:pointer; font-weight:600;" onclick="changeBackupFolder()">Change</span>`;
   }else{
     el.innerHTML = `Koi folder set nahi — agli baar "Download Backup" dabane par location poochega aur yaad rakh lega.`;
   }
@@ -6465,9 +6491,18 @@ async function buildBackupObject(){
       if(doc.data().list) salesData['sales:'+doc.id] = doc.data().list;
     });
   }catch(e){ console.error(e); }
+  // Invoices live in their own collection (one doc per invoice number).
+  let invoicesData = [];
+  try{
+    const invSnap = await db.collection('invoices').get();
+    invSnap.forEach(d=>invoicesData.push(d.data()));
+  }catch(e){ console.error(e); invoicesData = Array.isArray(invoicesCache) ? invoicesCache.slice() : []; }
   return {
+    backupVersion: 2,
     exportedAt: new Date().toISOString(),
     items, settings, partTypes, categories, subPartTypes, serviceSubTypes, creditEntries, shoppingList, expenseEntries, customers, repairJobs,
+    suppliers, phoneContacts, quickServiceTemplates, shoppingCategories,
+    invoices: invoicesData,
     sales: salesData
   };
 }
@@ -6710,7 +6745,27 @@ async function handleRestoreFile(event){
   openRestoreConfirmModal(data);
 }
 let pendingRestoreData = null;
+/* Rejects files that are not a real backup, BEFORE anything is overwritten. */
+function validateBackupData(data){
+  if(!data || typeof data!=='object' || Array.isArray(data)) return false;
+  const listKeys = ['items','creditEntries','shoppingList','expenseEntries','customers','repairJobs','suppliers','phoneContacts','quickServiceTemplates','shoppingCategories','categories','invoices'];
+  for(const k of listKeys){ if(data[k]!==undefined && !Array.isArray(data[k])) return false; }
+  const objKeys = ['settings','partTypes','subPartTypes','serviceSubTypes','sales'];
+  for(const k of objKeys){ if(data[k]!==undefined && (typeof data[k]!=='object' || data[k]===null || Array.isArray(data[k]))) return false; }
+  if(data.sales){ for(const k in data.sales){ if(!Array.isArray(data.sales[k])) return false; } }
+  const known = [...listKeys, ...objKeys];
+  return known.some(k=>data[k]!==undefined);
+}
+function downloadTextFile(fileName, text){
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
 function openRestoreConfirmModal(data){
+  if(!validateBackupData(data)){ showToast('This does not look like a valid Hassan Multimedia backup file'); return; }
   pendingRestoreData = data;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -6720,7 +6775,7 @@ function openRestoreConfirmModal(data){
     <div class="modal">
       <h3>Restore Backup?</h3>
       <p style="color:var(--muted); font-size:13.5px; margin-bottom:18px; line-height:1.7;">
-        This backup was exported on <b style="color:var(--text)">${dateStr}</b>. Restoring will replace all current inventory, sales history, categories and settings with the data in this file. This cannot be undone.
+        This backup was exported on <b style="color:var(--text)">${dateStr}</b>. Restoring will replace current inventory, sales history, Udhaar, customers, repair jobs, invoices, suppliers, categories and settings with the data in this file. A safety copy of your CURRENT data will be downloaded first, so you can go back if needed.
       </p>
       <button class="primary" onclick="confirmRestore()">Yes, Restore Now</button>
       <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('restoreConfirmOverlay').remove()">Cancel</button>
@@ -6730,6 +6785,15 @@ function openRestoreConfirmModal(data){
 async function confirmRestore(){
   const data = pendingRestoreData;
   if(!data) return;
+  // Safety net: download a copy of what is in the app RIGHT NOW before overwriting anything.
+  try{
+    showToast('Saving a safety copy of your current data...');
+    const current = await buildBackupObject();
+    downloadTextFile('Hassan Multimedia - BEFORE RESTORE - '+todayStr()+'.json', JSON.stringify(current));
+  }catch(e){
+    console.error(e);
+    if(!confirm('A safety copy of your current data could not be created. Restore anyway?')) return;
+  }
   try{
     if(data.items) { items = data.items; await saveItems(); }
     if(data.settings) { settings = data.settings; await saveSettings(); }
@@ -6742,6 +6806,20 @@ async function confirmRestore(){
     if(data.creditEntries) { creditEntries = data.creditEntries; await saveCredit(); }
     if(data.expenseEntries) { expenseEntries = data.expenseEntries; await saveExpenses(); }
     if(data.shoppingList) { shoppingList = data.shoppingList; await saveShopping(); }
+    if(data.suppliers) { suppliers = data.suppliers; await saveSuppliers(); }
+    if(data.phoneContacts) { phoneContacts = data.phoneContacts; await savePhoneContacts(); }
+    if(data.quickServiceTemplates) { quickServiceTemplates = data.quickServiceTemplates; await saveQuickServiceTemplates(); }
+    if(data.shoppingCategories) { shoppingCategories = data.shoppingCategories; await saveShoppingCategories(); }
+    if(data.invoices && data.invoices.length){
+      // Firestore batches hold up to 500 writes; stay well below that.
+      for(let i=0; i<data.invoices.length; i+=300){
+        const b = db.batch();
+        data.invoices.slice(i,i+300).forEach(inv=>{
+          if(inv && inv.invoiceNumber!==undefined) b.set(db.collection('invoices').doc(String(inv.invoiceNumber)), inv);
+        });
+        await b.commit();
+      }
+    }
     if(data.sales){
       for(const key in data.sales){
         const date = key.replace('sales:','');
@@ -6830,8 +6908,9 @@ document.addEventListener('wheel', e=>{
   // 'error'.
   let partTypesChanged = false;
   let categoriesChanged = false;
-  if(partTypesLoadStatus==='error' || categoriesLoadStatus==='error'){
-    showToast('Could not load your data from the cloud — check your connection and reopen the app before making changes');
+  const notLoadedKeys = Object.keys(loadOK).filter(k=>!loadOK[k]);
+  if(partTypesLoadStatus==='error' || categoriesLoadStatus==='error' || notLoadedKeys.length){
+    showToast('Could not load some of your data from the cloud — saving is paused for it. Check your connection and reopen the app.');
   }
   if(!settings.defaultsSeeded && partTypesLoadStatus!=='error'){
     if(!partTypes['Mobile Repair']){
