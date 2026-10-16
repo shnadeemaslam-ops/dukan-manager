@@ -2989,10 +2989,34 @@ function renderManageCategoriesModal(){
           <button class="danger-text" onclick="confirmDeleteCategoryEntry(${idx})">Delete</button>
         </div>
       `).join('')}
-      <button class="secondary" style="width:100%; margin-top:6px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
+      <button class="secondary" style="width:100%; margin-top:6px" onclick="rebuildTaxonomyFromItems()">♻ Restore Categories from Inventory Items</button>
+      <button class="secondary" style="width:100%; margin-top:10px" onclick="document.getElementById('manageCatOverlay').remove()">Close</button>
     </div>`;
   document.getElementById('app').appendChild(overlay);
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+}
+/* Rebuilds Category / Sub-Category / Type lists from what the saved items use.
+   Only ADDS missing names — never removes or reorders anything that exists. */
+async function rebuildTaxonomyFromItems(){
+  if(!items.length){ showToast('No items found to rebuild from'); return; }
+  let added = 0;
+  items.forEach(i=>{
+    const c = i.category, p = i.partType, sp = i.subPartType;
+    if(c && !categories.includes(c)){ categories.push(c); added++; }
+    if(c && p){
+      if(!partTypes[c]) partTypes[c] = [];
+      if(!partTypes[c].includes(p)){ partTypes[c].push(p); added++; }
+      if(sp){
+        const k = subPartKey(c,p);
+        if(!subPartTypes[k]) subPartTypes[k] = [];
+        if(!subPartTypes[k].includes(sp)){ subPartTypes[k].push(sp); added++; }
+      }
+    }
+  });
+  const r = await Promise.all([saveCategories(), savePartTypes(), saveSubPartTypes()]);
+  if(r.every(Boolean)){ showToast(added+' missing entries restored'); }
+  const o = document.getElementById('manageCatOverlay'); if(o) o.remove();
+  refreshCurrentView();
 }
 function confirmDeleteCategoryEntry(idx){
   const name = categories[idx];
