@@ -6515,6 +6515,31 @@ async function buildBackupObject(){
   };
 }
 
+function manualBackupTimestamp(date = new Date()){
+  // Local date and time, with milliseconds to avoid same-second filename collisions.
+  const pad = n => String(n).padStart(2, '0');
+  const ms = String(date.getMilliseconds()).padStart(3, '0');
+  return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate())+'_'+
+    pad(date.getHours())+'-'+pad(date.getMinutes())+'-'+pad(date.getSeconds())+'-'+ms;
+}
+
+async function getUniqueManualBackupFileName(dirHandle, timestamp){
+  const base = 'Hassan Multimedia - Backup - '+timestamp;
+  let candidate = base+'.json';
+  let suffix = 2;
+  // Never open an existing manual backup for writing; pick a fresh name instead.
+  while(true){
+    try{
+      await dirHandle.getFileHandle(candidate, {create:false});
+      candidate = base+' ('+suffix+').json';
+      suffix++;
+    }catch(e){
+      if(e && (e.name==='NotFoundError' || e.name==='TypeMismatchError')) return candidate;
+      throw e;
+    }
+  }
+}
+
 async function exportBackup(){
   showToast('Preparing backup...');
   let backup;
@@ -6526,7 +6551,8 @@ async function exportBackup(){
     return;
   }
   const json = JSON.stringify(backup, null, 2);
-  const fileName = 'Hassan Multimedia - Backup - '+todayStr()+'.json';
+  const timestamp = manualBackupTimestamp();
+  const baseFileName = 'Hassan Multimedia - Backup - '+timestamp+'.json';
 
   if(FS_ACCESS_SUPPORTED){
     try{
@@ -6539,6 +6565,7 @@ async function exportBackup(){
         if(hasPermission) await saveBackupFolderHandle(dirHandle);
       }
       if(dirHandle && hasPermission){
+        const fileName = await getUniqueManualBackupFileName(dirHandle, timestamp);
         const fileHandle = await dirHandle.getFileHandle(fileName, {create:true});
         const writable = await fileHandle.createWritable();
         await writable.write(json);
@@ -6559,7 +6586,7 @@ async function exportBackup(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = fileName;
+  a.download = baseFileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
