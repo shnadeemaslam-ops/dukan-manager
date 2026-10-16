@@ -6484,34 +6484,75 @@ async function changeBackupFolder(){
 }
 
 async function buildBackupObject(){
-  let salesData = {};
-  try{
-    const snapshot = await db.collection('sales').get();
-    snapshot.forEach(doc=>{
-      if(doc.data().list) salesData['sales:'+doc.id] = doc.data().list;
-    });
-  }catch(e){ console.error(e); }
-  // Invoices live in their own collection (one doc per invoice number).
-  let invoicesData = [];
-  try{
-    const invSnap = await db.collection('invoices').get();
-    invSnap.forEach(d=>invoicesData.push(d.data()));
-  }catch(e){ console.error(e); invoicesData = Array.isArray(invoicesCache) ? invoicesCache.slice() : []; }
+  if(!db) throw new Error('Cloud database is not ready; backup was not created.');
+  // Do not create a backup that looks successful while a cloud read failed.
+  // That could produce a partial file and later overwrite good data.
+  const [salesSnapshot, invoicesSnapshot] = await Promise.all([
+    db.collection('sales').get(),
+    db.collection('invoices').get()
+  ]);
+  if(salesSnapshot.metadata && salesSnapshot.metadata.fromCache) throw new Error('Sales data came from offline cache; connect to the internet and retry.');
+  if(invoicesSnapshot.metadata && invoicesSnapshot.metadata.fromCache) throw new Error('Invoice data came from offline cache; connect to the internet and retry.');
+  const salesData = {};
+  salesSnapshot.forEach(doc=>{
+    const row = doc.data();
+    if(row && Array.isArray(row.list)) salesData['sales:'+doc.id] = row.list;
+    else throw new Error('Sales record '+doc.id+' has an unexpected format.');
+  });
+  const invoicesData = [];
+  invoicesSnapshot.forEach(doc=>{
+    const row = doc.data();
+    if(!row || typeof row!=='object' || Array.isArray(row)) throw new Error('Invoice '+doc.id+' has an unexpected format.');
+    invoicesData.push(row);
+  });
   return {
-    backupVersion: 2,
+    backupVersion: 3,
     exportedAt: new Date().toISOString(),
     items, settings, partTypes, categories, subPartTypes, serviceSubTypes, creditEntries, shoppingList, expenseEntries, customers, repairJobs,
-    suppliers, phoneContacts, quickServiceTemplates, shoppingCategories,
+    suppliers, phoneContacts, importedContacts, quickServiceTemplates, shoppingCategories,
     invoices: invoicesData,
     sales: salesData
   };
 }
 
+function manualBackupTimestamp(date = new Date()){
+  // Local date and time, with milliseconds to avoid same-second filename collisions.
+  const pad = n => String(n).padStart(2, '0');
+  const ms = String(date.getMilliseconds()).padStart(3, '0');
+  return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate())+'_'+
+    pad(date.getHours())+'-'+pad(date.getMinutes())+'-'+pad(date.getSeconds())+'-'+ms;
+}
+
+async function getUniqueManualBackupFileName(dirHandle, timestamp){
+  const base = 'Hassan Multimedia - Backup - '+timestamp;
+  let candidate = base+'.json';
+  let suffix = 2;
+  // Never open an existing manual backup for writing; pick a fresh name instead.
+  while(true){
+    try{
+      await dirHandle.getFileHandle(candidate, {create:false});
+      candidate = base+' ('+suffix+').json';
+      suffix++;
+    }catch(e){
+      if(e && (e.name==='NotFoundError' || e.name==='TypeMismatchError')) return candidate;
+      throw e;
+    }
+  }
+}
+
 async function exportBackup(){
   showToast('Preparing backup...');
-  const backup = await buildBackupObject();
+  let backup;
+  try{
+    backup = await buildBackupObject();
+  }catch(e){
+    console.error('Backup creation failed:', e);
+    showToast('Backup not created — connect to the internet and retry. No partial backup was saved.');
+    return;
+  }
   const json = JSON.stringify(backup, null, 2);
-  const fileName = 'Hassan Multimedia - Backup - '+todayStr()+'.json';
+  const timestamp = manualBackupTimestamp();
+  const baseFileName = 'Hassan Multimedia - Backup - '+timestamp+'.json';
 
   if(FS_ACCESS_SUPPORTED){
     try{
@@ -6524,6 +6565,7 @@ async function exportBackup(){
         if(hasPermission) await saveBackupFolderHandle(dirHandle);
       }
       if(dirHandle && hasPermission){
+        const fileName = await getUniqueManualBackupFileName(dirHandle, timestamp);
         const fileHandle = await dirHandle.getFileHandle(fileName, {create:true});
         const writable = await fileHandle.createWritable();
         await writable.write(json);
@@ -6544,7 +6586,7 @@ async function exportBackup(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = fileName;
+  a.download = baseFileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -6748,7 +6790,7 @@ let pendingRestoreData = null;
 /* Rejects files that are not a real backup, BEFORE anything is overwritten. */
 function validateBackupData(data){
   if(!data || typeof data!=='object' || Array.isArray(data)) return false;
-  const listKeys = ['items','creditEntries','shoppingList','expenseEntries','customers','repairJobs','suppliers','phoneContacts','quickServiceTemplates','shoppingCategories','categories','invoices'];
+  const listKeys = ['items','creditEntries','shoppingList','expenseEntries','customers','repairJobs','suppliers','phoneContacts','importedContacts','quickServiceTemplates','shoppingCategories','categories','invoices'];
   for(const k of listKeys){ if(data[k]!==undefined && !Array.isArray(data[k])) return false; }
   const objKeys = ['settings','partTypes','subPartTypes','serviceSubTypes','sales'];
   for(const k of objKeys){ if(data[k]!==undefined && (typeof data[k]!=='object' || data[k]===null || Array.isArray(data[k]))) return false; }
@@ -6782,56 +6824,110 @@ function openRestoreConfirmModal(data){
     </div>`;
   document.getElementById('app').appendChild(overlay);
 }
+async function restoreWriteBatches(operations){
+  // Keep every batch comfortably below Firestore's 500-write limit.
+  for(let i=0; i<operations.length; i+=400){
+    const batch = db.batch();
+    operations.slice(i,i+400).forEach(op=>op.type==='delete' ? batch.delete(op.ref) : batch.set(op.ref, op.data));
+    await batch.commit();
+  }
+}
 async function confirmRestore(){
   const data = pendingRestoreData;
   if(!data) return;
-  // Safety net: download a copy of what is in the app RIGHT NOW before overwriting anything.
+  if(!db){ showToast('Cloud database is not ready — nothing was restored'); return; }
+  // Require a complete safety export before changing any live data.
+  let current;
   try{
-    showToast('Saving a safety copy of your current data...');
-    const current = await buildBackupObject();
-    downloadTextFile('Hassan Multimedia - BEFORE RESTORE - '+todayStr()+'.json', JSON.stringify(current));
+    showToast('Creating safety backup before restore...');
+    current = await buildBackupObject();
+    downloadTextFile('Hassan Multimedia - BEFORE RESTORE - '+todayStr()+'.json', JSON.stringify(current, null, 2));
   }catch(e){
-    console.error(e);
-    if(!confirm('A safety copy of your current data could not be created. Restore anyway?')) return;
+    console.error('Safety backup failed; restore stopped:', e);
+    showToast('Safety backup failed — restore cancelled, current data was not changed');
+    return;
   }
   try{
-    if(data.items) { items = data.items; await saveItems(); }
-    if(data.settings) { settings = data.settings; await saveSettings(); }
-    if(data.partTypes) { partTypes = data.partTypes; await savePartTypes(); }
-    if(data.categories) { categories = data.categories; await saveCategories(); }
-    if(data.subPartTypes) { subPartTypes = data.subPartTypes; await saveSubPartTypes(); }
-    if(data.serviceSubTypes) { serviceSubTypes = data.serviceSubTypes; await saveServiceSubTypes(); }
-    if(data.customers) { customers = data.customers; await saveCustomers(); }
-    if(data.repairJobs) { repairJobs = data.repairJobs; await saveRepairJobs(); }
-    if(data.creditEntries) { creditEntries = data.creditEntries; await saveCredit(); }
-    if(data.expenseEntries) { expenseEntries = data.expenseEntries; await saveExpenses(); }
-    if(data.shoppingList) { shoppingList = data.shoppingList; await saveShopping(); }
-    if(data.suppliers) { suppliers = data.suppliers; await saveSuppliers(); }
-    if(data.phoneContacts) { phoneContacts = data.phoneContacts; await savePhoneContacts(); }
-    if(data.quickServiceTemplates) { quickServiceTemplates = data.quickServiceTemplates; await saveQuickServiceTemplates(); }
-    if(data.shoppingCategories) { shoppingCategories = data.shoppingCategories; await saveShoppingCategories(); }
-    if(data.invoices && data.invoices.length){
-      // Firestore batches hold up to 500 writes; stay well below that.
-      for(let i=0; i<data.invoices.length; i+=300){
-        const b = db.batch();
-        data.invoices.slice(i,i+300).forEach(inv=>{
-          if(inv && inv.invoiceNumber!==undefined) b.set(db.collection('invoices').doc(String(inv.invoiceNumber)), inv);
-        });
-        await b.commit();
+    showToast('Restoring and verifying data...');
+    // Replace inventory exactly, including removing cloud-only records absent from the backup.
+    if(Array.isArray(data.items)){
+      const snap = await db.collection('items').get();
+      const wanted = new Set(data.items.map(x=>String(x && x.id)));
+      const ops = [];
+      snap.docs.forEach(d=>{ if(!wanted.has(String(d.id))) ops.push({type:'delete',ref:d.ref}); });
+      data.items.forEach(it=>{
+        if(!it || it.id===undefined || it.id===null) throw new Error('Backup contains an inventory item without an ID.');
+        ops.push({type:'set',ref:db.collection('items').doc(String(it.id)),data:it});
+      });
+      await restoreWriteBatches(ops);
+    }
+    const shopDocs = [
+      ['settings','settings','value'], ['partTypes','partTypes','value'], ['categories','categories','list'],
+      ['subPartTypes','subPartTypes','value'], ['serviceSubTypes','serviceSubTypes','value'],
+      ['creditEntries','creditEntries','list'], ['shoppingList','shoppingList','list'],
+      ['expenseEntries','expenses','list'], ['customers','customers','list'], ['repairJobs','repairJobs','list'],
+      ['suppliers','suppliers','list'], ['phoneContacts','phoneContacts','list'],
+      ['importedContacts','importedContacts','list'], ['quickServiceTemplates','quickServiceTemplates','list'],
+      ['shoppingCategories','shoppingCategories','list']
+    ];
+    for(const [key,docId,field] of shopDocs){
+      if(data[key]!==undefined){
+        const ref = db.collection('shop').doc(docId);
+        await ref.set({[field]:data[key]});
       }
     }
+    // Sales are one document per date. Delete dates not present in the snapshot,
+    // then write all backed-up dates so restore behaves as an actual snapshot.
     if(data.sales){
-      for(const key in data.sales){
-        const date = key.replace('sales:','');
-        await saveSales(date, data.sales[key]);
+      const snap = await db.collection('sales').get();
+      const wantedDates = new Set(Object.keys(data.sales).map(k=>k.startsWith('sales:') ? k.slice(6) : k));
+      const ops = [];
+      snap.docs.forEach(d=>{ if(!wantedDates.has(String(d.id))) ops.push({type:'delete',ref:d.ref}); });
+      for(const [key,list] of Object.entries(data.sales)){
+        const date = key.startsWith('sales:') ? key.slice(6) : key;
+        if(!Array.isArray(list)) throw new Error('Backup contains invalid sales data for '+date);
+        ops.push({type:'set',ref:db.collection('sales').doc(date),data:{list}});
       }
+      await restoreWriteBatches(ops);
     }
-    document.getElementById('shopNameText').textContent = settings.shopName;
+    // Invoice restore is also an exact snapshot, not a merge with stale invoices.
+    if(Array.isArray(data.invoices)){
+      const snap = await db.collection('invoices').get();
+      const wanted = new Set(data.invoices.filter(Boolean).map(inv=>String(inv.invoiceNumber)));
+      const ops = [];
+      snap.docs.forEach(d=>{ if(!wanted.has(String(d.id))) ops.push({type:'delete',ref:d.ref}); });
+      data.invoices.forEach(inv=>{
+        if(!inv || inv.invoiceNumber===undefined || inv.invoiceNumber===null) throw new Error('Backup contains an invoice without an invoice number.');
+        ops.push({type:'set',ref:db.collection('invoices').doc(String(inv.invoiceNumber)),data:inv});
+      });
+      await restoreWriteBatches(ops);
+    }
+    // Refresh in-memory state only after all cloud writes have completed successfully.
+    if(Array.isArray(data.items)) items=data.items;
+    if(data.settings!==undefined) settings=data.settings;
+    if(data.partTypes!==undefined) partTypes=data.partTypes;
+    if(data.categories!==undefined) categories=data.categories;
+    if(data.subPartTypes!==undefined) subPartTypes=data.subPartTypes;
+    if(data.serviceSubTypes!==undefined) serviceSubTypes=data.serviceSubTypes;
+    if(data.creditEntries!==undefined) creditEntries=data.creditEntries;
+    if(data.shoppingList!==undefined) shoppingList=data.shoppingList;
+    if(data.expenseEntries!==undefined) expenseEntries=data.expenseEntries;
+    if(data.customers!==undefined) customers=data.customers;
+    if(data.repairJobs!==undefined) repairJobs=data.repairJobs;
+    if(data.suppliers!==undefined) suppliers=data.suppliers;
+    if(data.phoneContacts!==undefined) phoneContacts=data.phoneContacts;
+    if(data.importedContacts!==undefined) importedContacts=data.importedContacts;
+    if(data.quickServiceTemplates!==undefined) quickServiceTemplates=data.quickServiceTemplates;
+    if(data.shoppingCategories!==undefined) shoppingCategories=data.shoppingCategories;
+    if(Array.isArray(data.invoices)) invoicesCache=data.invoices.slice();
+    pendingRestoreData=null;
+    document.getElementById('shopNameText').textContent = settings.shopName || 'Hassan Multimedia';
     document.querySelectorAll('.modal-overlay').forEach(el=>el.remove());
-    showToast('Backup restored ✓');
+    showToast('Backup restored successfully ✓');
     await switchView('dashboard');
   }catch(e){
-    showToast('Restore failed, please try again');
+    console.error('Restore incomplete:', e);
+    showToast('Restore incomplete — safety backup was downloaded. Check internet and restore again.');
   }
 }
 
