@@ -3933,15 +3933,26 @@ async function applyQuickServiceTemplate(index){
   if(typeEl) typeEl.value = t.type || 'Other Service';
   toggleServiceFields();
   const subEl = document.getElementById('svc_subtype');
-  if(subEl && t.subType){
-    if(![...subEl.options].some(o=>o.value===t.subType)){
-      const opt=document.createElement('option'); opt.value=t.subType; opt.textContent=t.subType;
+  // Mobile/Laptop repairs: select the template's Repair Type; if it has none, the template name itself is the
+  // repair type (so the sale lands in its own sub-category in reports instead of "Other").
+  const wantedSub = SUBTYPE_SERVICE_TYPES.includes(t.type) ? (t.subType || t.name) : t.subType;
+  if(subEl && wantedSub){
+    if(![...subEl.options].some(o=>o.value===wantedSub)){
+      const opt=document.createElement('option'); opt.value=wantedSub; opt.textContent=wantedSub;
       subEl.insertBefore(opt, subEl.querySelector('option[value="__add_new__"]')||null);
     }
-    subEl.value=t.subType;
+    subEl.value=wantedSub;
   }
   const customEl=document.getElementById('svc_custom_name');
-  if(customEl) customEl.value=t.name;
+  const mergedField = SUBTYPE_SERVICE_TYPES.includes(t.type);
+  const modelInput = document.getElementById('svc_model');
+  if(mergedField && modelInput){
+    // One combined field: put the service name in it and leave the cursor at the end so the model can be typed.
+    const cur = modelInput.value.trim();
+    if(!cur) modelInput.value = t.name + ' ';
+    else if(!cur.toLowerCase().includes(t.name.toLowerCase())) modelInput.value = cur + ' ' + t.name + ' ';
+    if(customEl) customEl.value='';
+  } else if(customEl) customEl.value=t.name;
   const amountEl=document.getElementById('svc_amount');
   if(amountEl) amountEl.value=t.defaultFee||'';
   const costEl=document.getElementById('svc_part_cost');
@@ -3951,7 +3962,7 @@ async function applyQuickServiceTemplate(index){
   updateServiceProfitPreview();
   const modelEl=document.getElementById('svc_model');
   const focusEl=(modelEl && modelEl.offsetParent!==null) ? modelEl : document.getElementById('svc_amount');
-  if(focusEl) focusEl.focus();
+  if(focusEl){ focusEl.focus(); if(focusEl.setSelectionRange && focusEl.type==='text'){ const L=focusEl.value.length; try{ focusEl.setSelectionRange(L,L); }catch(e){} } }
   showToast(`${t.name} selected ✓`);
 }
 function openQuickServiceTemplatesModal(){
@@ -4022,7 +4033,11 @@ function addServiceToBillCart(){
 
   let name = customName || (subType || type);
   if(partName) name = partName + ' (' + (subType || type) + ')';
-  if(model) name = (SUBTYPE_SERVICE_TYPES.includes(type) && !subType && !partName && !customName) ? model : model + ' — ' + name;
+  if(model){
+    const mergedType = SUBTYPE_SERVICE_TYPES.includes(type);
+    if(mergedType && !partName && !customName && (!subType || model.toLowerCase().includes(subType.toLowerCase()))) name = model;
+    else name = model + ' — ' + name;
+  }
 
   billCart.push({ itemId: null, name, qty, unitCost: partCost, unitSell: amount, category: type, isService: true, serviceSubType: subType||null });
   showToast(`${name} added to bill ✓`);
@@ -4206,7 +4221,11 @@ async function submitService(){
 
   let name = customName || (subType || type);
   if(partName) name = partName + ' (' + (subType || type) + ')';
-  if(model) name = (SUBTYPE_SERVICE_TYPES.includes(type) && !subType && !partName && !customName) ? model : model + ' — ' + name;
+  if(model){
+    const mergedType = SUBTYPE_SERVICE_TYPES.includes(type);
+    if(mergedType && !partName && !customName && (!subType || model.toLowerCase().includes(subType.toLowerCase()))) name = model;
+    else name = model + ' — ' + name;
+  }
 
   let customerId = null;
   if(customerName) customerId = await findOrCreateCustomer(customerName, customerPhone);
@@ -4908,8 +4927,9 @@ function getSaleSubPartType(s){
 function getAdvanceFilteredSales(sales){
   let filtered = sales;
   if(advanceCategory) filtered = filtered.filter(s=>getSaleCategory(s)===advanceCategory);
-  if(advancePartType) filtered = filtered.filter(s=>getSalePartType(s)===advancePartType);
-  if(advanceSubPartType) filtered = filtered.filter(s=>getSaleSubPartType(s)===advanceSubPartType);
+  // Rows with no sub-category are grouped as "Other", so "Other" must match them when it is opened.
+  if(advancePartType) filtered = filtered.filter(s=>(getSalePartType(s)||'Other')===advancePartType);
+  if(advanceSubPartType) filtered = filtered.filter(s=>(getSaleSubPartType(s)||'Other')===advanceSubPartType);
   return filtered;
 }
 function getAdvanceLevel(filtered){
